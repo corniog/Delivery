@@ -7,7 +7,15 @@ const store = {
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } }
 };
 
-export const getApiUrl = () => store.get('api_url') || DEFAULT_URL;
+// La URL puede venir de (1) lo guardado en el login, (2) public/config.json, (3) la variable VITE_API_URL
+let fileUrl = '';
+export async function loadConfig() {
+  try {
+    const r = await fetch('./config.json', { cache: 'no-store' });
+    if (r.ok) fileUrl = String((await r.json()).API_URL || '').trim();
+  } catch { /* sin config.json: se usa lo demás */ }
+}
+export const getApiUrl = () => store.get('api_url') || fileUrl || DEFAULT_URL;
 export const setApiUrl = (u) => store.set('api_url', u ? u.trim() : null);
 export const getToken = () => store.get('token');
 export const setToken = (t) => store.set('token', t);

@@ -38,11 +38,10 @@ docs/      Plantilla de la base de datos (referencia).
 ### Parte 2 — La web (GitHub Pages)
 1. En este repositorio: **Settings → Pages → Source: GitHub Actions**.
    (GitHub Pages gratis requiere repositorio **público**; el código no contiene claves ni datos.)
-2. *(Opcional)* **Settings → Secrets and variables → Actions → Variables → New variable**:
-   nombre `VITE_API_URL`, valor = la URL del paso 6. Así la app ya sale conectada.
-   Si no lo haces, la primera vez pegas la URL en la pantalla de login → **Configurar servidor**.
+2. Edita el archivo `web/public/config.json` (lápiz ✏ en GitHub) y pega la URL del paso 6 en `API_URL`.
+   Así la app sale ya conectada. (Alternativa: pegarla en el login → **Configurar servidor**.)
 3. Sube cambios a `main` (o **Actions → Publicar web → Run workflow**). En ~1 minuto tendrás el link:
-   `https://TU-USUARIO.github.io/delivery/`
+   `https://corniog.github.io/Delivery/`
 
 ### Parte 3 — Usarla
 1. Abre el link, inicia sesión con tu correo y clave de `Config`.
