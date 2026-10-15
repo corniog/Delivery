@@ -1,2 +1,93 @@
-# Delivery
-Control de Venta y delivery
+# App Negocio — Inventario, Ventas y Delivery
+
+App web instalable (PWA, funciona en celular y computador) para administrar un negocio:
+inventario, ventas con ticket/boleta/factura interna, clientes, proveedores, delivery con
+perfil de repartidor, historial con filtros y totales, KPI, reportes en Excel, base de
+conocimiento (PDF), usuarios con permisos configurables y **logo personalizable**.
+
+**Costo: $0.** Usa Google Sheets (base de datos) + Apps Script (servidor) + GitHub Pages (web).
+
+```
+backend/   Código de Google Apps Script (la API). Se pega en tu Google Sheet.
+web/       La aplicación (React + Vite). Se publica sola en GitHub Pages.
+tools/     Simulador local y pruebas automáticas del backend.
+docs/      Plantilla de la base de datos (referencia).
+```
+
+## Puesta en marcha (≈ 15 minutos, una sola vez)
+
+### Parte 1 — El servidor (tu Google Sheet)
+1. Entra a [sheets.new](https://sheets.new) y ponle de nombre, por ejemplo, **Base Negocio**.
+2. Menú **Extensiones → Apps Script**.
+3. Borra el archivo `Código.gs` que viene vacío y crea **4 archivos** con estos nombres exactos,
+   pegando el contenido de cada uno desde la carpeta `backend/` de este repositorio:
+   `Schema`, `Config`, `Code`, `Setup` (Apps Script les agrega `.gs` solo).
+4. En `Config`, cambia **ADMIN_EMAIL** (tu correo) y **ADMIN_PASSWORD** (una clave de 8+ caracteres).
+5. Arriba, en el selector de funciones elige **instalar** y presiona **Ejecutar**.
+   Google pedirá permisos (Sheets y Drive): *Revisar permisos → tu cuenta → Avanzado → Ir a… → Permitir*.
+   Esto crea todas las hojas, los roles, los permisos base y tu usuario Master.
+6. **Implementar → Nueva implementación → ⚙ Aplicación web**
+   - Ejecutar como: **Yo**
+   - Quién tiene acceso: **Cualquier persona**
+   - Presiona **Implementar** y **copia la URL** que termina en `/exec`.
+
+   > "Cualquier persona" solo permite llegar a la API: sin usuario y contraseña no se puede leer ni escribir nada.
+7. Si después cambias el código de Apps Script: **Implementar → Administrar implementaciones → ✏ → Versión: Nueva versión**.
+
+### Parte 2 — La web (GitHub Pages)
+1. En este repositorio: **Settings → Pages → Source: GitHub Actions**.
+   (GitHub Pages gratis requiere repositorio **público**; el código no contiene claves ni datos.)
+2. *(Opcional)* **Settings → Secrets and variables → Actions → Variables → New variable**:
+   nombre `VITE_API_URL`, valor = la URL del paso 6. Así la app ya sale conectada.
+   Si no lo haces, la primera vez pegas la URL en la pantalla de login → **Configurar servidor**.
+3. Sube cambios a `main` (o **Actions → Publicar web → Run workflow**). En ~1 minuto tendrás el link:
+   `https://TU-USUARIO.github.io/delivery/`
+
+### Parte 3 — Usarla
+1. Abre el link, inicia sesión con tu correo y clave de `Config`.
+2. **Configuración** → sube tu **logo** y elige tu color. Se ve en el login, menú y tickets de todos los perfiles.
+3. **Usuarios y permisos** → crea tu equipo (Ventas, Delivery) y ajusta qué puede hacer cada rol o cada persona.
+4. **Categorías** (con imagen) → **Inventario** → ya puedes **Vender**.
+5. **Celular:** abre el link en Chrome → menú ⋮ → **Instalar aplicación** (iPhone: Compartir → Añadir a pantalla de inicio).
+
+## Perfiles incluidos
+| Rol | Puede |
+|---|---|
+| **Master** | Todo. Siempre. |
+| **Ventas** | Vender, crear/editar productos y clientes, asignar delivery. No elimina nada. |
+| **Delivery** | Solo ve sus pedidos asignados: acepta, rechaza, marca "salí a entregar" y finaliza. Ve su historial. |
+
+El Master puede crear más roles y cambiar cualquier permiso (ver, crear, editar, eliminar, exportar por módulo),
+y dar excepciones a una persona puntual (ej.: un vendedor que sí pueda anular ventas).
+
+## Cómo funciona lo importante
+- **Venta → stock:** al confirmar, el servidor descuenta el stock, registra el movimiento y, si llega al
+  mínimo, crea una alerta (se ve en Inicio para Master y Ventas). Ventas simultáneas están protegidas con bloqueo.
+- **Delivery:** la venta con entrega crea un servicio (fecha automática, dirección, km, monto). Al finalizar
+  el repartidor, se alerta a Master y Ventas. El botón de ruta abre Google Maps con kilómetros y tiempo (gratis).
+- **Historial:** filtra por nombre y rango de fechas; muestra el monto de cada servicio y **el total del filtro**.
+- **Tickets:** térmica 58 mm, 80 mm o A4 con el diálogo de impresión del navegador.
+  Boleta/factura son **comprobantes internos**; la validez tributaria requiere un proveedor autorizado (ver Pendientes).
+- **Código de barras:** botón de escáner con la cámara (Chrome en Android). En iPhone se escribe el código a mano.
+
+## Probar sin Google (en tu computador)
+```bash
+node tools/test-backend.js          # pruebas automáticas del backend
+node tools/dev-server.js            # API simulada en http://localhost:8787  (master@demo.com / Demo12345)
+cd web && npm install && npm run dev
+```
+En el login pulsa **Configurar servidor** y usa `http://localhost:8787`.
+
+## Pendientes (siguientes fases)
+- **APK Android** (Capacitor, compilado con GitHub Actions; gratis para uso propio, Google Play cuesta US$25 único).
+- **Mapa en vivo** con la ubicación del repartidor (OpenStreetMap, gratis; la base ya tiene la tabla `Ubicaciones_Delivery`).
+- **Compras a proveedores** con entrada automática de stock y registro de visitas.
+- **Boleta/factura electrónica legal** (requiere proveedor con API; suele tener costo por documento).
+- **Migración a servidor propio** (Supabase/PostgreSQL): solo cambia `web/src/api.js`.
+- Regenerar el esquema de hojas: `python3 tools/generar_esquema.py`.
+
+## Seguridad
+- Las contraseñas se guardan con sal + hash SHA-256 (200 vueltas); nunca en claro.
+- Los permisos se validan **en el servidor**, no solo ocultando botones.
+- 5 intentos fallidos bloquean el acceso 10 minutos. Las sesiones duran 6 horas.
+- Las imágenes y PDF subidos quedan en una carpeta de tu Drive con acceso "cualquiera con el enlace" (necesario para mostrarlas en la app).
