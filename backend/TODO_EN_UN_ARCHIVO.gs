@@ -1,0 +1,1745 @@
+// ============================================================
+//  CÓDIGO COMPLETO DEL SERVIDOR (un solo archivo para pegar en Apps Script)
+//  Contiene: Config + Schema + Code + Setup. Edita ADMIN_EMAIL y ADMIN_PASSWORD abajo.
+// ============================================================
+
+// ============================================================
+//  CONFIGURACIÓN INICIAL  (edita estos 2 valores ANTES de ejecutar instalar())
+// ============================================================
+const ADMIN_EMAIL = 'cambia@tucorreo.com';       // correo con el que entrarás como Master
+const ADMIN_PASSWORD = 'CambiaEstaClave123';     // contraseña inicial (cámbiala dentro de la app)
+
+// ------------------------------------------------------------
+const SESSION_SECONDS = 21600;          // 6 horas (máximo que permite CacheService)
+const DRIVE_FOLDER_NAME = 'AppNegocio_Archivos';
+const MASTER_ROLE = 'R01';
+const MODULES = ['Inventario', 'Categorias', 'Ventas', 'Clientes', 'Proveedores', 'Delivery',
+  'Historial', 'Conocimiento', 'Reportes', 'KPI', 'Usuarios', 'Configuracion'];
+const ACTIONS_LIST = ['Ver', 'Crear', 'Editar', 'Eliminar', 'Exportar'];
+
+// GENERADO desde la base de datos. Define las hojas (tablas) y sus columnas.
+const SCHEMA = {
+ "Usuarios": [
+  "ID_Usuario",
+  "Email",
+  "Nombre",
+  "Telefono",
+  "ID_Rol",
+  "ID_Delivery",
+  "Activo",
+  "Password_Hash",
+  "Salt",
+  "Ultimo_Login",
+  "Fecha_Creacion"
+ ],
+ "Roles": [
+  "ID_Rol",
+  "Nombre_Rol",
+  "Descripcion"
+ ],
+ "Permisos": [
+  "ID_Permiso",
+  "ID_Rol",
+  "Modulo",
+  "Ver",
+  "Crear",
+  "Editar",
+  "Eliminar",
+  "Exportar"
+ ],
+ "Permisos_Usuario": [
+  "ID_PermU",
+  "ID_Usuario",
+  "Modulo",
+  "Ver",
+  "Crear",
+  "Editar",
+  "Eliminar",
+  "Exportar"
+ ],
+ "Configuracion": [
+  "Clave",
+  "Valor",
+  "Descripcion"
+ ],
+ "Categorias": [
+  "ID_Categoria",
+  "Nombre",
+  "Imagen",
+  "Orden",
+  "Activo"
+ ],
+ "Unidades": [
+  "Unidad",
+  "Abreviatura"
+ ],
+ "Productos": [
+  "ID_Producto",
+  "Codigo_Barras",
+  "SKU",
+  "Nombre",
+  "ID_Categoria",
+  "Imagen",
+  "Unidad_Medida",
+  "Precio_Compra",
+  "Precio_Venta",
+  "Stock_Actual",
+  "Stock_Minimo",
+  "ID_Proveedor",
+  "Activo",
+  "Fecha_Creacion"
+ ],
+ "Movimientos_Inventario": [
+  "ID_Mov",
+  "Fecha",
+  "ID_Producto",
+  "Tipo",
+  "Cantidad",
+  "Stock_Antes",
+  "Stock_Despues",
+  "Referencia",
+  "Usuario",
+  "Nota"
+ ],
+ "Clientes": [
+  "ID_Cliente",
+  "Nombre",
+  "Documento",
+  "Telefono",
+  "Email",
+  "Direccion",
+  "Ubicacion",
+  "Notas",
+  "Fecha_Creacion"
+ ],
+ "Proveedores": [
+  "ID_Proveedor",
+  "Nombre",
+  "Documento",
+  "Contacto",
+  "Telefono",
+  "Email",
+  "Direccion",
+  "Dias_Visita",
+  "Ultima_Visita",
+  "Proxima_Visita",
+  "Notas"
+ ],
+ "Visitas_Proveedor": [
+  "ID_Visita",
+  "ID_Proveedor",
+  "Fecha",
+  "Tipo",
+  "Notas",
+  "Usuario"
+ ],
+ "Compras": [
+  "ID_Compra",
+  "Fecha",
+  "ID_Proveedor",
+  "Total",
+  "Estado",
+  "Usuario"
+ ],
+ "Detalle_Compra": [
+  "ID_DetCompra",
+  "ID_Compra",
+  "ID_Producto",
+  "Cantidad",
+  "Costo_Unitario",
+  "Subtotal"
+ ],
+ "Deliverys": [
+  "ID_Delivery",
+  "Nombre",
+  "Telefono",
+  "Email",
+  "Vehiculo",
+  "Patente",
+  "Estado",
+  "Tarifa_Base",
+  "Tarifa_Km",
+  "Activo",
+  "Ultima_Ubicacion",
+  "Fecha_Ubicacion"
+ ],
+ "Ventas": [
+  "ID_Venta",
+  "Fecha_Hora",
+  "ID_Cliente",
+  "Tipo_Entrega",
+  "Subtotal",
+  "Descuento",
+  "Costo_Delivery",
+  "Total",
+  "Metodo_Pago",
+  "Estado_Pago",
+  "Estado",
+  "Tipo_Documento",
+  "Dia_Semana",
+  "Usuario"
+ ],
+ "Detalle_Venta": [
+  "ID_Detalle",
+  "ID_Venta",
+  "ID_Producto",
+  "Nombre_Producto",
+  "ID_Categoria",
+  "Cantidad",
+  "Precio_Unitario",
+  "Costo_Unitario",
+  "Descuento",
+  "Subtotal",
+  "Fecha"
+ ],
+ "Servicios_Delivery": [
+  "ID_Servicio",
+  "ID_Venta",
+  "ID_Delivery",
+  "Nombre_Delivery",
+  "Fecha_Asignacion",
+  "Fecha_Aceptado",
+  "Fecha_Finalizado",
+  "Fecha",
+  "Direccion_Entrega",
+  "Destino_LatLong",
+  "Origen_LatLong",
+  "Distancia_Km",
+  "Tiempo_Min",
+  "Monto_Delivery",
+  "Estado",
+  "Notas",
+  "Usuario_Asigna"
+ ],
+ "Ubicaciones_Delivery": [
+  "ID_Ubic",
+  "ID_Servicio",
+  "ID_Delivery",
+  "LatLong",
+  "Fecha_Hora"
+ ],
+ "Documentos": [
+  "ID_Documento",
+  "ID_Venta",
+  "Tipo",
+  "Folio",
+  "Fecha",
+  "Neto",
+  "Impuesto",
+  "Total",
+  "Formato",
+  "PDF_URL"
+ ],
+ "Categorias_Conocimiento": [
+  "ID_CatCon",
+  "Nombre",
+  "Imagen"
+ ],
+ "Conocimiento": [
+  "ID_Conocimiento",
+  "Titulo",
+  "ID_CatCon",
+  "Archivo_PDF",
+  "Descripcion",
+  "Etiquetas",
+  "Fecha",
+  "Usuario"
+ ],
+ "Alertas": [
+  "ID_Alerta",
+  "Fecha",
+  "Tipo",
+  "Referencia",
+  "Mensaje",
+  "Para_Rol",
+  "Leida"
+ ],
+ "Auditoria": [
+  "ID_Log",
+  "Fecha",
+  "Usuario",
+  "Modulo",
+  "Accion",
+  "Registro",
+  "Detalle"
+ ]
+};
+
+const SEED = {
+ "Roles": [
+  [
+   "R01",
+   "Master",
+   "Acceso total"
+  ],
+  [
+   "R02",
+   "Ventas",
+   "Vende, consulta inventario, asigna delivery"
+  ],
+  [
+   "R03",
+   "Delivery",
+   "Solo ve y gestiona sus servicios"
+  ]
+ ],
+ "Permisos": [
+  [
+   "R01-Inventario",
+   "R01",
+   "Inventario",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Categorias",
+   "R01",
+   "Categorias",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Ventas",
+   "R01",
+   "Ventas",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Clientes",
+   "R01",
+   "Clientes",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Proveedores",
+   "R01",
+   "Proveedores",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Delivery",
+   "R01",
+   "Delivery",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Historial",
+   "R01",
+   "Historial",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Conocimiento",
+   "R01",
+   "Conocimiento",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Reportes",
+   "R01",
+   "Reportes",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-KPI",
+   "R01",
+   "KPI",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Usuarios",
+   "R01",
+   "Usuarios",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R01-Configuracion",
+   "R01",
+   "Configuracion",
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  [
+   "R02-Inventario",
+   "R02",
+   "Inventario",
+   true,
+   true,
+   true,
+   false,
+   false
+  ],
+  [
+   "R02-Categorias",
+   "R02",
+   "Categorias",
+   true,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-Ventas",
+   "R02",
+   "Ventas",
+   true,
+   true,
+   true,
+   false,
+   false
+  ],
+  [
+   "R02-Clientes",
+   "R02",
+   "Clientes",
+   true,
+   true,
+   true,
+   false,
+   false
+  ],
+  [
+   "R02-Proveedores",
+   "R02",
+   "Proveedores",
+   true,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-Delivery",
+   "R02",
+   "Delivery",
+   true,
+   true,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-Historial",
+   "R02",
+   "Historial",
+   true,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-Conocimiento",
+   "R02",
+   "Conocimiento",
+   true,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-Reportes",
+   "R02",
+   "Reportes",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-KPI",
+   "R02",
+   "KPI",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-Usuarios",
+   "R02",
+   "Usuarios",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R02-Configuracion",
+   "R02",
+   "Configuracion",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Inventario",
+   "R03",
+   "Inventario",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Categorias",
+   "R03",
+   "Categorias",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Ventas",
+   "R03",
+   "Ventas",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Clientes",
+   "R03",
+   "Clientes",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Proveedores",
+   "R03",
+   "Proveedores",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Delivery",
+   "R03",
+   "Delivery",
+   true,
+   false,
+   true,
+   false,
+   false
+  ],
+  [
+   "R03-Historial",
+   "R03",
+   "Historial",
+   true,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Conocimiento",
+   "R03",
+   "Conocimiento",
+   true,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Reportes",
+   "R03",
+   "Reportes",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-KPI",
+   "R03",
+   "KPI",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Usuarios",
+   "R03",
+   "Usuarios",
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  [
+   "R03-Configuracion",
+   "R03",
+   "Configuracion",
+   false,
+   false,
+   false,
+   false,
+   false
+  ]
+ ],
+ "Unidades": [
+  [
+   "Unidad",
+   "un"
+  ],
+  [
+   "Kilogramo",
+   "kg"
+  ],
+  [
+   "Gramo",
+   "g"
+  ],
+  [
+   "Litro",
+   "lt"
+  ],
+  [
+   "Mililitro",
+   "ml"
+  ],
+  [
+   "Caja",
+   "caja"
+  ],
+  [
+   "Paquete",
+   "paq"
+  ],
+  [
+   "Docena",
+   "doc"
+  ]
+ ],
+ "Configuracion": [
+  [
+   "NOMBRE_NEGOCIO",
+   "Mi Negocio",
+   "Nombre que sale en documentos"
+  ],
+  [
+   "DOCUMENTO_NEGOCIO",
+   "76.000.000-0",
+   "RUT / ID fiscal del negocio"
+  ],
+  [
+   "DIRECCION_NEGOCIO",
+   "Calle Ejemplo 100",
+   "Dirección del local"
+  ],
+  [
+   "MONEDA",
+   "CLP",
+   "Moneda"
+  ],
+  [
+   "IMPUESTO_PORC",
+   "0.19",
+   "Porcentaje de impuesto (0.19 = 19%)"
+  ],
+  [
+   "TARIFA_BASE_DELIVERY",
+   "1000",
+   "Tarifa base por defecto"
+  ],
+  [
+   "TARIFA_KM_DELIVERY",
+   "300",
+   "Tarifa por km por defecto"
+  ],
+  [
+   "FORMATO_DOC_DEFECTO",
+   "Termica 80mm",
+   "Termica 58mm | Termica 80mm | A4 Carta"
+  ],
+  [
+   "ORIGEN_LATLONG",
+   "-33.4372,-70.6506",
+   "Coordenadas del local"
+  ],
+  [
+   "ALERTA_STOCK_ACTIVA",
+   "TRUE",
+   "Activa las alertas de stock mínimo"
+  ],
+  [
+   "LOGO",
+   "",
+   "URL del logo (se sube desde Configuración)"
+  ]
+ ]
+};
+
+// ============================================================
+//  API del negocio  -  Google Apps Script (Web App)
+//  Todo pasa por aquí: login, permisos, inventario, ventas, delivery.
+//  La app NUNCA toca el Sheet directo: la seguridad se valida en este archivo.
+// ============================================================
+
+function doGet() {
+  return json_({ ok: true, data: { app: 'App Negocio API', version: '1.0' } });
+}
+
+function doPost(e) {
+  let req;
+  try {
+    req = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return json_({ ok: false, error: 'Solicitud inválida' });
+  }
+  try {
+    return json_({ ok: true, data: route_(req) });
+  } catch (err) {
+    return json_({ ok: false, error: err.message || String(err), code: err.code || '' });
+  }
+}
+
+function json_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function fail_(msg, code) {
+  const e = new Error(msg);
+  e.code = code || '';
+  throw e;
+}
+
+// ---------- Rutas ----------
+function route_(req) {
+  const a = req.accion;
+  const d = req.datos || {};
+  if (a === 'publico') return publico_();
+  if (a === 'login') return login_(d);
+  const ctx = authenticate_(req.token);
+  const fn = ACTIONS[a];
+  if (!fn) fail_('Acción desconocida: ' + a);
+  return fn(ctx, d);
+}
+
+const ACTIONS = {
+  me: me_,
+  logout: logout_,
+  cambiarPassword: cambiarPassword_,
+  listar: listar_,
+  crear: crear_,
+  actualizar: actualizar_,
+  eliminar: eliminar_,
+  ajustarStock: ajustarStock_,
+  crearVenta: crearVenta_,
+  anularVenta: anularVenta_,
+  listarVentas: listarVentas_,
+  detalleVenta: detalleVenta_,
+  misServicios: misServicios_,
+  servicioEstado: servicioEstado_,
+  historialDelivery: historialDelivery_,
+  marcarAlertas: marcarAlertas_,
+  kpi: kpi_,
+  subirArchivo: subirArchivo_,
+  guardarConfig: guardarConfig_,
+  usuariosCrear: usuariosCrear_,
+  usuariosActualizar: usuariosActualizar_,
+  usuariosPassword: usuariosPassword_,
+  permisosGuardar: permisosGuardar_,
+  exportar: exportar_
+};
+
+// Tablas que se pueden manejar con listar/crear/actualizar/eliminar
+const TABLES = {
+  Productos: { key: 'ID_Producto', prefix: 'P', module: 'Inventario' },
+  Categorias: { key: 'ID_Categoria', prefix: 'C', module: 'Categorias' },
+  Unidades: { key: 'Unidad', module: 'Inventario' },
+  Clientes: { key: 'ID_Cliente', prefix: 'CL', module: 'Clientes' },
+  Proveedores: { key: 'ID_Proveedor', prefix: 'PR', module: 'Proveedores' },
+  Visitas_Proveedor: { key: 'ID_Visita', prefix: 'VP', module: 'Proveedores' },
+  Compras: { key: 'ID_Compra', prefix: 'CO', module: 'Proveedores' },
+  Detalle_Compra: { key: 'ID_DetCompra', prefix: 'DC', module: 'Proveedores' },
+  Deliverys: { key: 'ID_Delivery', prefix: 'D', module: 'Delivery' },
+  Categorias_Conocimiento: { key: 'ID_CatCon', prefix: 'CK', module: 'Conocimiento' },
+  Conocimiento: { key: 'ID_Conocimiento', prefix: 'K', module: 'Conocimiento' },
+  Roles: { key: 'ID_Rol', prefix: 'R', module: 'Usuarios' },
+  Permisos: { key: 'ID_Permiso', module: 'Usuarios' },
+  Permisos_Usuario: { key: 'ID_PermU', prefix: 'PU', module: 'Usuarios' }
+};
+// Tablas de solo lectura (se escriben con acciones propias)
+const READ_ONLY = {
+  Ventas: 'Ventas', Detalle_Venta: 'Ventas', Documentos: 'Ventas',
+  Movimientos_Inventario: 'Inventario', Servicios_Delivery: 'Delivery',
+  Ubicaciones_Delivery: 'Delivery', Auditoria: 'Configuracion', Configuracion: null
+};
+// Columnas que nunca se pueden escribir desde la app
+const PROTECTED_COLS = { Productos: ['Stock_Actual'] };
+// Cambios en estas tablas obligan a recalcular permisos en caché
+const AUTH_TABLES = { Roles: 1, Permisos: 1, Permisos_Usuario: 1, Usuarios: 1 };
+
+// ---------- Acceso a hojas ----------
+function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+
+function sheet_(name) {
+  const sh = ss_().getSheetByName(name);
+  if (!sh) fail_('Falta la hoja "' + name + '". Ejecuta instalar() en el editor de Apps Script.');
+  return sh;
+}
+
+function headers_(name) { return SCHEMA[name]; }
+
+function tz_() { return ss_().getSpreadsheetTimeZone() || 'America/Santiago'; }
+
+function fmtDT_(d) { return Utilities.formatDate(d, tz_(), "yyyy-MM-dd'T'HH:mm:ss"); }
+function fmtD_(d) { return Utilities.formatDate(d, tz_(), 'yyyy-MM-dd'); }
+
+function norm_(v) {
+  if (v instanceof Date) return fmtDT_(v);
+  return v;
+}
+
+function readAll_(name) {
+  const sh = sheet_(name);
+  const v = sh.getDataRange().getValues();
+  if (v.length < 2) return [];
+  const h = v[0];
+  const out = [];
+  for (let i = 1; i < v.length; i++) {
+    const row = v[i];
+    let empty = true;
+    for (let j = 0; j < row.length; j++) if (row[j] !== '') { empty = false; break; }
+    if (empty) continue;
+    const o = { _row: i + 1 };
+    for (let j = 0; j < h.length; j++) o[h[j]] = norm_(row[j]);
+    out.push(o);
+  }
+  return out;
+}
+
+function insert_(name, obj) {
+  const sh = sheet_(name);
+  const h = headers_(name);
+  sh.appendRow(h.map(function (c) { return obj[c] === undefined || obj[c] === null ? '' : obj[c]; }));
+}
+
+function update_(name, row, patch) {
+  const sh = sheet_(name);
+  const h = headers_(name);
+  const cur = sh.getRange(row, 1, 1, h.length).getValues()[0];
+  const next = h.map(function (c, i) {
+    return patch[c] !== undefined && patch[c] !== null ? patch[c] : (patch[c] === null ? '' : cur[i]);
+  });
+  sh.getRange(row, 1, 1, h.length).setValues([next]);
+}
+
+function findBy_(name, col, val) {
+  const rows = readAll_(name);
+  for (let i = 0; i < rows.length; i++) if (String(rows[i][col]) === String(val)) return rows[i];
+  return null;
+}
+
+function newId_(prefix) {
+  return prefix + Utilities.getUuid().replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
+function nextNum_(key) {
+  const p = PropertiesService.getScriptProperties();
+  const n = (parseInt(p.getProperty('n_' + key), 10) || 0) + 1;
+  p.setProperty('n_' + key, String(n));
+  return n;
+}
+
+function pad_(n, w) { let s = String(n); while (s.length < w) s = '0' + s; return s; }
+function bool_(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
+function num_(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
+function round2_(n) { return Math.round(n * 100) / 100; }
+
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+function config_() {
+  const o = {};
+  readAll_('Configuracion').forEach(function (r) { o[r.Clave] = r.Valor; });
+  return o;
+}
+
+function audit_(ctx, modulo, accion, registro, detalle) {
+  try {
+    insert_('Auditoria', {
+      ID_Log: newId_('L'), Fecha: fmtDT_(new Date()), Usuario: ctx ? ctx.user.Email : '',
+      Modulo: modulo, Accion: accion, Registro: registro || '', Detalle: detalle || ''
+    });
+  } catch (e) { /* la auditoría nunca debe romper la operación */ }
+}
+
+// ---------- Autenticación ----------
+function hash_(password, salt) {
+  let h = salt + password;
+  for (let i = 0; i < 200; i++) {
+    const d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, h + i);
+    h = d.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+  }
+  return h;
+}
+
+function publico_() {
+  const c = config_();
+  return { NOMBRE_NEGOCIO: c.NOMBRE_NEGOCIO || 'Mi Negocio', LOGO: c.LOGO || '' };
+}
+
+function login_(d) {
+  const email = String(d.email || '').trim().toLowerCase();
+  const password = String(d.password || '');
+  if (!email || !password) fail_('Ingresa correo y contraseña');
+  const cache = CacheService.getScriptCache();
+  const failKey = 'fail_' + email;
+  const fails = parseInt(cache.get(failKey), 10) || 0;
+  if (fails >= 5) fail_('Demasiados intentos. Espera 10 minutos e inténtalo de nuevo.');
+  const users = readAll_('Usuarios');
+  let user = null;
+  for (let i = 0; i < users.length; i++) {
+    if (String(users[i].Email).trim().toLowerCase() === email) { user = users[i]; break; }
+  }
+  if (!user || !bool_(user.Activo) || hash_(password, String(user.Salt)) !== String(user.Password_Hash)) {
+    cache.put(failKey, String(fails + 1), 600);
+    fail_('Correo o contraseña incorrectos');
+  }
+  cache.remove(failKey);
+  const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
+  cache.put('tok_' + token, user.ID_Usuario, SESSION_SECONDS);
+  update_('Usuarios', user._row, { Ultimo_Login: fmtDT_(new Date()) });
+  const ctx = buildCtx_(user);
+  audit_(ctx, 'Usuarios', 'Login', user.ID_Usuario, '');
+  return Object.assign({ token: token }, meData_(ctx));
+}
+
+function ctxVersion_() {
+  return PropertiesService.getScriptProperties().getProperty('ctxver') || '0';
+}
+function ctxBump_() {
+  PropertiesService.getScriptProperties().setProperty('ctxver', String((parseInt(ctxVersion_(), 10) || 0) + 1));
+}
+
+function authenticate_(token) {
+  if (!token) fail_('Sesión no iniciada', 'AUTH');
+  const cache = CacheService.getScriptCache();
+  const uid = cache.get('tok_' + token);
+  if (!uid) fail_('Tu sesión expiró. Vuelve a iniciar sesión.', 'AUTH');
+  const key = 'ctx_' + ctxVersion_() + '_' + uid;
+  const cached = cache.get(key);
+  if (cached) return JSON.parse(cached);
+  const user = findBy_('Usuarios', 'ID_Usuario', uid);
+  if (!user || !bool_(user.Activo)) fail_('Usuario deshabilitado', 'AUTH');
+  const ctx = buildCtx_(user);
+  cache.put(key, JSON.stringify(ctx), 120);
+  return ctx;
+}
+
+function buildCtx_(user) {
+  const safe = {
+    ID_Usuario: user.ID_Usuario, Email: user.Email, Nombre: user.Nombre, Telefono: user.Telefono,
+    ID_Rol: user.ID_Rol, ID_Delivery: user.ID_Delivery || ''
+  };
+  return { user: safe, perms: perms_(safe) };
+}
+
+function perms_(user) {
+  const all = {};
+  MODULES.forEach(function (m) {
+    all[m] = {};
+    ACTIONS_LIST.forEach(function (a) { all[m][a] = user.ID_Rol === MASTER_ROLE; });
+  });
+  if (user.ID_Rol === MASTER_ROLE) return all;
+  function apply(rows) {
+    rows.forEach(function (p) {
+      if (!all[p.Modulo]) return;
+      ACTIONS_LIST.forEach(function (a) { all[p.Modulo][a] = bool_(p[a]); });
+    });
+  }
+  apply(readAll_('Permisos').filter(function (p) { return p.ID_Rol === user.ID_Rol; }));
+  apply(readAll_('Permisos_Usuario').filter(function (p) { return p.ID_Usuario === user.ID_Usuario; }));
+  return all;
+}
+
+function can_(ctx, module, action) {
+  return !!(ctx.perms[module] && ctx.perms[module][action]);
+}
+function need_(ctx, module, action) {
+  if (!can_(ctx, module, action)) fail_('No tienes permiso para ' + action.toLowerCase() + ' en ' + module, 'PERM');
+}
+function isMaster_(ctx) { return ctx.user.ID_Rol === MASTER_ROLE; }
+function isDelivery_(ctx) { return !!ctx.user.ID_Delivery; }
+
+function meData_(ctx) {
+  const c = config_();
+  return { user: ctx.user, perms: ctx.perms, config: c };
+}
+
+function me_(ctx) { return meData_(ctx); }
+
+function logout_(ctx, d) { return true; }
+
+function cambiarPassword_(ctx, d) {
+  const user = findBy_('Usuarios', 'ID_Usuario', ctx.user.ID_Usuario);
+  if (hash_(String(d.actual || ''), String(user.Salt)) !== String(user.Password_Hash)) fail_('La contraseña actual no es correcta');
+  checkPassword_(d.nueva);
+  const salt = Utilities.getUuid();
+  update_('Usuarios', user._row, { Salt: salt, Password_Hash: hash_(String(d.nueva), salt) });
+  audit_(ctx, 'Usuarios', 'Editar', user.ID_Usuario, 'Cambio de contraseña');
+  return true;
+}
+
+function checkPassword_(p) {
+  if (!p || String(p).length < 8) fail_('La contraseña debe tener al menos 8 caracteres');
+}
+
+// ---------- CRUD genérico ----------
+function cleanRow_(table, row) {
+  const o = {};
+  headers_(table).forEach(function (c) { o[c] = row[c]; });
+  return o;
+}
+
+function listar_(ctx, d) {
+  const t = d.tabla;
+  const cfg = TABLES[t];
+  if (cfg) {
+    need_(ctx, cfg.module, 'Ver');
+    let rows = readAll_(t);
+    if (t === 'Deliverys' && isDelivery_(ctx)) rows = rows.filter(function (r) { return r.ID_Delivery === ctx.user.ID_Delivery; });
+    return rows.map(function (r) { return cleanRow_(t, r); });
+  }
+  if (t === 'Usuarios') {
+    need_(ctx, 'Usuarios', 'Ver');
+    return readAll_('Usuarios').map(function (u) {
+      const o = cleanRow_('Usuarios', u);
+      delete o.Password_Hash; delete o.Salt;
+      return o;
+    });
+  }
+  if (t === 'Alertas') {
+    const rows = readAll_('Alertas').filter(function (a) {
+      return isMaster_(ctx) || String(a.Para_Rol).split(',').indexOf(ctx.user.ID_Rol) >= 0;
+    });
+    return rows.map(function (r) { return cleanRow_('Alertas', r); });
+  }
+  if (t === 'Configuracion') {
+    return readAll_('Configuracion').map(function (r) { return cleanRow_(t, r); });
+  }
+  if (READ_ONLY.hasOwnProperty(t)) {
+    const m = READ_ONLY[t];
+    need_(ctx, m, 'Ver');
+    if (t === 'Servicios_Delivery' || t === 'Ubicaciones_Delivery') fail_('Usa misServicios o historialDelivery');
+    return readAll_(t).map(function (r) { return cleanRow_(t, r); });
+  }
+  fail_('Tabla desconocida: ' + t);
+}
+
+function writable_(table, datos) {
+  const prot = PROTECTED_COLS[table] || [];
+  const o = {};
+  headers_(table).forEach(function (c) {
+    if (datos[c] !== undefined && prot.indexOf(c) < 0) o[c] = datos[c];
+  });
+  return o;
+}
+
+function crear_(ctx, d) {
+  const t = d.tabla;
+  const cfg = TABLES[t];
+  if (!cfg) fail_('No se puede crear en ' + t);
+  need_(ctx, cfg.module, 'Crear');
+  if (t === 'Roles' || t === 'Permisos' || t === 'Permisos_Usuario') { if (!isMaster_(ctx)) fail_('Solo el Master puede modificar roles y permisos', 'PERM'); }
+  const datos = writable_(t, d.datos || {});
+  if (!datos[cfg.key]) datos[cfg.key] = cfg.prefix ? newId_(cfg.prefix) : fail_('Falta ' + cfg.key);
+  if (cfg.key === 'Unidad' || t === 'Permisos') {
+    if (findBy_(t, cfg.key, datos[cfg.key])) fail_('Ya existe un registro con ese valor');
+  }
+  const now = fmtDT_(new Date());
+  if (headers_(t).indexOf('Fecha_Creacion') >= 0 && !datos.Fecha_Creacion) datos.Fecha_Creacion = now;
+  if (headers_(t).indexOf('Fecha') >= 0 && !datos.Fecha && t !== 'Detalle_Compra') datos.Fecha = now;
+  let stockInicial = 0;
+  if (t === 'Productos') {
+    stockInicial = num_((d.datos || {}).Stock_Actual);
+    if (!datos.Nombre) fail_('El producto necesita un nombre');
+    datos.Stock_Actual = stockInicial;
+    if (datos.Activo === undefined || datos.Activo === '') datos.Activo = true;
+    if (datos.Codigo_Barras) {
+      const dup = readAll_('Productos').filter(function (p) { return String(p.Codigo_Barras) === String(datos.Codigo_Barras); });
+      if (dup.length) fail_('Ya existe un producto con ese código de barras: ' + dup[0].Nombre);
+    }
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    insert_(t, datos);
+    if (t === 'Productos' && stockInicial > 0) {
+      insert_('Movimientos_Inventario', {
+        ID_Mov: newId_('M'), Fecha: now, ID_Producto: datos.ID_Producto, Tipo: 'Entrada compra',
+        Cantidad: stockInicial, Stock_Antes: 0, Stock_Despues: stockInicial, Referencia: 'Stock inicial',
+        Usuario: ctx.user.Email, Nota: 'Alta del producto'
+      });
+    }
+  } finally { lock.releaseLock(); }
+  if (AUTH_TABLES[t]) ctxBump_();
+  audit_(ctx, cfg.module, 'Crear', datos[cfg.key], t);
+  return cleanRow_(t, datos);
+}
+
+function actualizar_(ctx, d) {
+  const t = d.tabla;
+  const cfg = TABLES[t];
+  if (!cfg) fail_('No se puede editar ' + t);
+  need_(ctx, cfg.module, 'Editar');
+  if (t === 'Roles' || t === 'Permisos' || t === 'Permisos_Usuario') { if (!isMaster_(ctx)) fail_('Solo el Master puede modificar roles y permisos', 'PERM'); }
+  const cur = findBy_(t, cfg.key, d.id);
+  if (!cur) fail_('Registro no encontrado');
+  const datos = writable_(t, d.datos || {});
+  delete datos[cfg.key];
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { update_(t, cur._row, datos); } finally { lock.releaseLock(); }
+  if (AUTH_TABLES[t]) ctxBump_();
+  audit_(ctx, cfg.module, 'Editar', d.id, t);
+  return true;
+}
+
+function eliminar_(ctx, d) {
+  const t = d.tabla;
+  const cfg = TABLES[t];
+  if (!cfg) fail_('No se puede eliminar en ' + t);
+  need_(ctx, cfg.module, 'Eliminar');
+  if (t === 'Roles' || t === 'Permisos' || t === 'Permisos_Usuario') { if (!isMaster_(ctx)) fail_('Solo el Master puede modificar roles y permisos', 'PERM'); }
+  if (t === 'Roles' && (d.id === MASTER_ROLE)) fail_('No se puede eliminar el rol Master');
+  const cur = findBy_(t, cfg.key, d.id);
+  if (!cur) fail_('Registro no encontrado');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { sheet_(t).deleteRow(cur._row); } finally { lock.releaseLock(); }
+  if (AUTH_TABLES[t]) ctxBump_();
+  audit_(ctx, cfg.module, 'Eliminar', d.id, t);
+  return true;
+}
+
+// ---------- Inventario ----------
+function ajustarStock_(ctx, d) {
+  need_(ctx, 'Inventario', 'Editar');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const p = findBy_('Productos', 'ID_Producto', d.ID_Producto);
+    if (!p) fail_('Producto no encontrado');
+    const antes = num_(p.Stock_Actual);
+    let despues;
+    const tipo = d.tipo;
+    if (tipo === 'Ajuste') {
+      despues = num_(d.nuevoStock);
+      if (despues < 0) fail_('El stock no puede ser negativo');
+    } else if (tipo === 'Entrada compra') {
+      if (!(num_(d.cantidad) > 0)) fail_('Cantidad inválida');
+      despues = antes + num_(d.cantidad);
+    } else if (tipo === 'Merma') {
+      if (!(num_(d.cantidad) > 0)) fail_('Cantidad inválida');
+      despues = antes - num_(d.cantidad);
+      if (despues < 0) fail_('La merma supera el stock disponible');
+    } else fail_('Tipo de movimiento inválido');
+    update_('Productos', p._row, { Stock_Actual: despues });
+    insert_('Movimientos_Inventario', {
+      ID_Mov: newId_('M'), Fecha: fmtDT_(new Date()), ID_Producto: p.ID_Producto, Tipo: tipo,
+      Cantidad: Math.abs(despues - antes), Stock_Antes: antes, Stock_Despues: despues,
+      Referencia: d.referencia || '', Usuario: ctx.user.Email, Nota: d.nota || ''
+    });
+    stockAlert_(p, despues);
+    audit_(ctx, 'Inventario', 'Editar', p.ID_Producto, tipo + ': ' + antes + ' → ' + despues);
+    return { ID_Producto: p.ID_Producto, Stock_Actual: despues };
+  } finally { lock.releaseLock(); }
+}
+
+function stockAlert_(p, nuevoStock) {
+  const c = config_();
+  if (c.ALERTA_STOCK_ACTIVA !== undefined && !bool_(c.ALERTA_STOCK_ACTIVA)) return;
+  const min = num_(p.Stock_Minimo);
+  if (nuevoStock > min) return;
+  const existe = readAll_('Alertas').some(function (a) {
+    return a.Tipo === 'Stock minimo' && String(a.Referencia) === String(p.ID_Producto) && !bool_(a.Leida);
+  });
+  if (existe) return;
+  insert_('Alertas', {
+    ID_Alerta: newId_('A'), Fecha: fmtDT_(new Date()), Tipo: 'Stock minimo', Referencia: p.ID_Producto,
+    Mensaje: p.Nombre + ' llegó al stock mínimo (quedan ' + nuevoStock + ', mínimo ' + min + ')',
+    Para_Rol: 'R01,R02', Leida: false
+  });
+}
+
+function marcarAlertas_(ctx, d) {
+  const ids = d.ids || [];
+  readAll_('Alertas').forEach(function (a) {
+    const mine = isMaster_(ctx) || String(a.Para_Rol).split(',').indexOf(ctx.user.ID_Rol) >= 0;
+    if (mine && (d.todas || ids.indexOf(a.ID_Alerta) >= 0) && !bool_(a.Leida)) update_('Alertas', a._row, { Leida: true });
+  });
+  return true;
+}
+
+// ---------- Ventas ----------
+function crearVenta_(ctx, d) {
+  need_(ctx, 'Ventas', 'Crear');
+  const itemsIn = d.items || [];
+  if (!itemsIn.length) fail_('La venta no tiene productos');
+  const merged = {};
+  itemsIn.forEach(function (it) {
+    const q = num_(it.Cantidad);
+    if (!(q > 0)) fail_('Cantidad inválida');
+    merged[it.ID_Producto] = (merged[it.ID_Producto] || 0) + q;
+  });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const cfg = config_();
+    const negativo = bool_(cfg.PERMITIR_STOCK_NEGATIVO);
+    const productos = {};
+    readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
+    const entrega = d.tipoEntrega === 'Delivery' ? 'Delivery' : 'Retiro en local';
+    if (d.ID_Cliente && !findBy_('Clientes', 'ID_Cliente', d.ID_Cliente)) fail_('El cliente no existe');
+    if (entrega === 'Delivery') {
+      if (!d.delivery || !d.delivery.ID_Delivery) fail_('Selecciona el delivery');
+      if (!findBy_('Deliverys', 'ID_Delivery', d.delivery.ID_Delivery)) fail_('El delivery no existe');
+    }
+    const now = new Date();
+    const fh = fmtDT_(now);
+    const fecha = fmtD_(now);
+    const idVenta = 'V' + pad_(nextNum_('venta'), 6);
+    let subtotal = 0;
+    const detalle = [];
+    const movs = [];
+    const updates = [];
+    const ids = Object.keys(merged);
+    ids.forEach(function (id) {
+      const p = productos[id];
+      if (!p) fail_('Producto no existe: ' + id);
+      if (!bool_(p.Activo)) fail_('El producto "' + p.Nombre + '" está desactivado');
+      const qty = merged[id];
+      const stock = num_(p.Stock_Actual);
+      if (qty > stock && !negativo) fail_('Stock insuficiente de "' + p.Nombre + '" (disponible: ' + stock + ')');
+      const precio = num_(p.Precio_Venta);
+      const sub = round2_(qty * precio);
+      subtotal += sub;
+      detalle.push({
+        ID_Detalle: newId_('DV'), ID_Venta: idVenta, ID_Producto: id, Nombre_Producto: p.Nombre,
+        ID_Categoria: p.ID_Categoria, Cantidad: qty, Precio_Unitario: precio, Costo_Unitario: num_(p.Precio_Compra),
+        Descuento: 0, Subtotal: sub, Fecha: fecha
+      });
+      const nuevo = stock - qty;
+      updates.push({ p: p, nuevo: nuevo });
+      movs.push({
+        ID_Mov: newId_('M'), Fecha: fh, ID_Producto: id, Tipo: 'Salida venta', Cantidad: qty,
+        Stock_Antes: stock, Stock_Despues: nuevo, Referencia: idVenta, Usuario: ctx.user.Email, Nota: ''
+      });
+    });
+    subtotal = round2_(subtotal);
+    const descuento = round2_(Math.max(0, num_(d.descuento)));
+    if (descuento > subtotal) fail_('El descuento no puede superar el subtotal');
+    let costoDelivery = 0;
+    if (entrega === 'Delivery') costoDelivery = round2_(Math.max(0, num_(d.delivery.Monto_Delivery)));
+    const total = round2_(subtotal - descuento + costoDelivery);
+    const tipoDoc = ['Ticket', 'Boleta', 'Factura'].indexOf(d.tipoDocumento) >= 0 ? d.tipoDocumento : 'Ticket';
+    const venta = {
+      ID_Venta: idVenta, Fecha_Hora: fh, ID_Cliente: d.ID_Cliente || '', Tipo_Entrega: entrega,
+      Subtotal: subtotal, Descuento: descuento, Costo_Delivery: costoDelivery, Total: total,
+      Metodo_Pago: d.metodoPago || 'Efectivo', Estado_Pago: d.estadoPago || 'Pagado',
+      Estado: entrega === 'Delivery' ? 'En despacho' : 'Confirmada', Tipo_Documento: tipoDoc,
+      Dia_Semana: DIAS[Number(Utilities.formatDate(now, tz_(), 'u')) % 7], Usuario: ctx.user.Email
+    };
+    insert_('Ventas', venta);
+    detalle.forEach(function (r) { insert_('Detalle_Venta', r); });
+    updates.forEach(function (u) { update_('Productos', u.p._row, { Stock_Actual: u.nuevo }); });
+    movs.forEach(function (m) { insert_('Movimientos_Inventario', m); });
+    updates.forEach(function (u) { stockAlert_(u.p, u.nuevo); });
+    let servicio = null;
+    if (entrega === 'Delivery') {
+      const dl = findBy_('Deliverys', 'ID_Delivery', d.delivery.ID_Delivery);
+      const cli = d.ID_Cliente ? findBy_('Clientes', 'ID_Cliente', d.ID_Cliente) : null;
+      servicio = {
+        ID_Servicio: 'S' + pad_(nextNum_('servicio'), 6), ID_Venta: idVenta, ID_Delivery: dl.ID_Delivery,
+        Nombre_Delivery: dl.Nombre, Fecha_Asignacion: fh, Fecha_Aceptado: '', Fecha_Finalizado: '', Fecha: fecha,
+        Direccion_Entrega: d.delivery.Direccion_Entrega || (cli ? cli.Direccion : ''),
+        Destino_LatLong: d.delivery.Destino_LatLong || (cli ? cli.Ubicacion : ''),
+        Origen_LatLong: cfg.ORIGEN_LATLONG || '', Distancia_Km: num_(d.delivery.Distancia_Km),
+        Tiempo_Min: num_(d.delivery.Tiempo_Min), Monto_Delivery: costoDelivery, Estado: 'Asignado',
+        Notas: d.delivery.Notas || '', Usuario_Asigna: ctx.user.Email
+      };
+      insert_('Servicios_Delivery', servicio);
+    }
+    // Documento interno (ticket / comprobante)
+    const imp = num_(cfg.IMPUESTO_PORC);
+    const neto = imp > 0 ? round2_(total / (1 + imp)) : total;
+    const documento = {
+      ID_Documento: newId_('DOC'), ID_Venta: idVenta, Tipo: tipoDoc,
+      Folio: String(nextNum_('doc_' + tipoDoc)), Fecha: fh, Neto: neto, Impuesto: round2_(total - neto), Total: total,
+      Formato: d.formato || cfg.FORMATO_DOC_DEFECTO || 'Termica 80mm', PDF_URL: ''
+    };
+    insert_('Documentos', documento);
+    audit_(ctx, 'Ventas', 'Crear', idVenta, 'Total ' + total);
+    const cliente = d.ID_Cliente ? cleanRow_('Clientes', findBy_('Clientes', 'ID_Cliente', d.ID_Cliente)) : null;
+    return { venta: venta, detalle: detalle, servicio: servicio, documento: documento, cliente: cliente };
+  } finally { lock.releaseLock(); }
+}
+
+function anularVenta_(ctx, d) {
+  need_(ctx, 'Ventas', 'Eliminar');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const v = findBy_('Ventas', 'ID_Venta', d.ID_Venta);
+    if (!v) fail_('Venta no encontrada');
+    if (v.Estado === 'Anulada') fail_('La venta ya está anulada');
+    const productos = {};
+    readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
+    const fh = fmtDT_(new Date());
+    readAll_('Detalle_Venta').filter(function (r) { return r.ID_Venta === d.ID_Venta; }).forEach(function (r) {
+      const p = productos[r.ID_Producto];
+      if (!p) return;
+      const antes = num_(p.Stock_Actual);
+      const despues = antes + num_(r.Cantidad);
+      update_('Productos', p._row, { Stock_Actual: despues });
+      p.Stock_Actual = despues;
+      insert_('Movimientos_Inventario', {
+        ID_Mov: newId_('M'), Fecha: fh, ID_Producto: r.ID_Producto, Tipo: 'Anulacion venta', Cantidad: num_(r.Cantidad),
+        Stock_Antes: antes, Stock_Despues: despues, Referencia: d.ID_Venta, Usuario: ctx.user.Email, Nota: d.motivo || ''
+      });
+    });
+    update_('Ventas', v._row, { Estado: 'Anulada' });
+    readAll_('Servicios_Delivery').filter(function (s) { return s.ID_Venta === d.ID_Venta && s.Estado !== 'Finalizado'; })
+      .forEach(function (s) { update_('Servicios_Delivery', s._row, { Estado: 'Cancelado' }); });
+    audit_(ctx, 'Ventas', 'Eliminar', d.ID_Venta, 'Venta anulada. ' + (d.motivo || ''));
+    return true;
+  } finally { lock.releaseLock(); }
+}
+
+function listarVentas_(ctx, d) {
+  if (isDelivery_(ctx) || (!can_(ctx, 'Ventas', 'Ver') && !can_(ctx, 'Historial', 'Ver'))) fail_('No tienes permiso para ver ventas', 'PERM');
+  const desde = d.desde || '0000-00-00';
+  const hasta = d.hasta || '9999-99-99';
+  const clientes = {};
+  readAll_('Clientes').forEach(function (c) { clientes[c.ID_Cliente] = c.Nombre; });
+  const rows = readAll_('Ventas').filter(function (v) {
+    const f = String(v.Fecha_Hora).slice(0, 10);
+    return f >= desde && f <= hasta && (!d.estado || v.Estado === d.estado);
+  }).map(function (v) {
+    const o = cleanRow_('Ventas', v);
+    o.Cliente = clientes[v.ID_Cliente] || '';
+    return o;
+  });
+  rows.sort(function (a, b) { return a.Fecha_Hora < b.Fecha_Hora ? 1 : -1; });
+  const validas = rows.filter(function (r) { return r.Estado !== 'Anulada'; });
+  return { rows: rows, total: round2_(validas.reduce(function (s, r) { return s + num_(r.Total); }, 0)), cantidad: validas.length };
+}
+
+function detalleVenta_(ctx, d) {
+  if (isDelivery_(ctx) || (!can_(ctx, 'Ventas', 'Ver') && !can_(ctx, 'Historial', 'Ver'))) fail_('No tienes permiso para ver ventas', 'PERM');
+  const v = findBy_('Ventas', 'ID_Venta', d.ID_Venta);
+  if (!v) fail_('Venta no encontrada');
+  const cli = v.ID_Cliente ? findBy_('Clientes', 'ID_Cliente', v.ID_Cliente) : null;
+  return {
+    venta: cleanRow_('Ventas', v),
+    detalle: readAll_('Detalle_Venta').filter(function (r) { return r.ID_Venta === d.ID_Venta; }).map(function (r) { return cleanRow_('Detalle_Venta', r); }),
+    documento: (readAll_('Documentos').filter(function (r) { return r.ID_Venta === d.ID_Venta; }).map(function (r) { return cleanRow_('Documentos', r); }))[0] || null,
+    cliente: cli ? cleanRow_('Clientes', cli) : null
+  };
+}
+
+// ---------- Delivery ----------
+function misServicios_(ctx, d) {
+  need_(ctx, 'Delivery', 'Ver');
+  const own = isDelivery_(ctx);
+  let rows = readAll_('Servicios_Delivery');
+  if (own) rows = rows.filter(function (s) { return s.ID_Delivery === ctx.user.ID_Delivery; });
+  if (d.estados && d.estados.length) rows = rows.filter(function (s) { return d.estados.indexOf(s.Estado) >= 0; });
+  const detalle = readAll_('Detalle_Venta');
+  const ventas = {}; readAll_('Ventas').forEach(function (v) { ventas[v.ID_Venta] = v; });
+  const clientes = {}; readAll_('Clientes').forEach(function (c) { clientes[c.ID_Cliente] = c; });
+  const out = rows.map(function (s) {
+    const o = cleanRow_('Servicios_Delivery', s);
+    const v = ventas[s.ID_Venta];
+    const c = v ? clientes[v.ID_Cliente] : null;
+    o.items = detalle.filter(function (r) { return r.ID_Venta === s.ID_Venta; })
+      .map(function (r) { return { Nombre: r.Nombre_Producto, Cantidad: r.Cantidad }; });
+    o.Cliente = c ? c.Nombre : '';
+    o.Cliente_Telefono = c ? c.Telefono : '';
+    o.Total_Venta = v ? v.Total : 0;
+    o.Estado_Pago = v ? v.Estado_Pago : '';
+    return o;
+  });
+  out.sort(function (a, b) { return a.Fecha_Asignacion < b.Fecha_Asignacion ? 1 : -1; });
+  return out;
+}
+
+function servicioEstado_(ctx, d) {
+  need_(ctx, 'Delivery', 'Ver');
+  const s = findBy_('Servicios_Delivery', 'ID_Servicio', d.ID_Servicio);
+  if (!s) fail_('Servicio no encontrado');
+  const estado = d.estado;
+  const validos = ['Aceptado', 'En camino', 'Finalizado', 'Rechazado', 'Cancelado', 'Asignado'];
+  if (validos.indexOf(estado) < 0) fail_('Estado inválido');
+  if (isDelivery_(ctx)) {
+    if (s.ID_Delivery !== ctx.user.ID_Delivery) fail_('Este servicio no es tuyo', 'PERM');
+    if (['Aceptado', 'En camino', 'Finalizado', 'Rechazado'].indexOf(estado) < 0) fail_('Acción no permitida', 'PERM');
+  } else {
+    need_(ctx, 'Delivery', 'Editar');
+  }
+  if (s.Estado === 'Finalizado' || s.Estado === 'Cancelado') fail_('El servicio ya está cerrado');
+  const patch = { Estado: estado };
+  const fh = fmtDT_(new Date());
+  if (estado === 'Aceptado') patch.Fecha_Aceptado = fh;
+  if (estado === 'Finalizado') {
+    patch.Fecha_Finalizado = fh;
+    if (d.Distancia_Km !== undefined && d.Distancia_Km !== '') patch.Distancia_Km = num_(d.Distancia_Km);
+    if (d.Tiempo_Min !== undefined && d.Tiempo_Min !== '') patch.Tiempo_Min = num_(d.Tiempo_Min);
+  }
+  update_('Servicios_Delivery', s._row, patch);
+  if (estado === 'Finalizado' || estado === 'Rechazado') {
+    insert_('Alertas', {
+      ID_Alerta: newId_('A'), Fecha: fh, Tipo: estado === 'Finalizado' ? 'Delivery finalizado' : 'Delivery rechazado',
+      Referencia: s.ID_Servicio,
+      Mensaje: s.Nombre_Delivery + (estado === 'Finalizado' ? ' finalizó' : ' rechazó') + ' el pedido ' + s.ID_Venta + ' (' + s.Direccion_Entrega + ')',
+      Para_Rol: 'R01,R02', Leida: false
+    });
+  }
+  if (estado === 'Finalizado') {
+    const v = findBy_('Ventas', 'ID_Venta', s.ID_Venta);
+    if (v && v.Estado !== 'Anulada') update_('Ventas', v._row, { Estado: 'Entregada' });
+  }
+  audit_(ctx, 'Delivery', 'Editar', s.ID_Servicio, 'Estado → ' + estado);
+  return true;
+}
+
+function historialDelivery_(ctx, d) {
+  if (!can_(ctx, 'Historial', 'Ver') && !can_(ctx, 'Delivery', 'Ver')) fail_('No tienes permiso para ver el historial', 'PERM');
+  const desde = d.desde || '0000-00-00';
+  const hasta = d.hasta || '9999-99-99';
+  const q = String(d.nombre || '').trim().toLowerCase();
+  let idDel = d.ID_Delivery || '';
+  if (isDelivery_(ctx)) idDel = ctx.user.ID_Delivery;
+  const rows = readAll_('Servicios_Delivery').filter(function (s) {
+    const f = String(s.Fecha).slice(0, 10);
+    if (f < desde || f > hasta) return false;
+    if (idDel && s.ID_Delivery !== idDel) return false;
+    if (q && String(s.Nombre_Delivery).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  }).map(function (s) { return cleanRow_('Servicios_Delivery', s); });
+  rows.sort(function (a, b) { return a.Fecha_Asignacion < b.Fecha_Asignacion ? 1 : -1; });
+  const contables = rows.filter(function (r) { return r.Estado === 'Finalizado'; });
+  return {
+    rows: rows,
+    total: round2_(contables.reduce(function (s, r) { return s + num_(r.Monto_Delivery); }, 0)),
+    km: round2_(contables.reduce(function (s, r) { return s + num_(r.Distancia_Km); }, 0)),
+    servicios: contables.length
+  };
+}
+
+// ---------- KPI ----------
+function kpi_(ctx, d) {
+  need_(ctx, 'KPI', 'Ver');
+  const desde = d.desde || '0000-00-00';
+  const hasta = d.hasta || '9999-99-99';
+  const ventas = readAll_('Ventas').filter(function (v) {
+    const f = String(v.Fecha_Hora).slice(0, 10);
+    return v.Estado !== 'Anulada' && f >= desde && f <= hasta;
+  });
+  const idsValidos = {};
+  ventas.forEach(function (v) { idsValidos[v.ID_Venta] = v; });
+  const total = ventas.reduce(function (s, v) { return s + num_(v.Total); }, 0);
+  const porDia = {}; DIAS.forEach(function (n) { porDia[n] = { dia: n, ventas: 0, monto: 0 }; });
+  const porHora = {};
+  ventas.forEach(function (v) {
+    const dt = new Date(String(v.Fecha_Hora));
+    const nombre = v.Dia_Semana || DIAS[dt.getDay()];
+    if (porDia[nombre]) { porDia[nombre].ventas++; porDia[nombre].monto += num_(v.Total); }
+    const h = String(v.Fecha_Hora).slice(11, 13);
+    porHora[h] = (porHora[h] || 0) + 1;
+  });
+  const prod = {}; const cat = {}; let margen = 0;
+  readAll_('Detalle_Venta').forEach(function (r) {
+    if (!idsValidos[r.ID_Venta]) return;
+    const p = prod[r.ID_Producto] || (prod[r.ID_Producto] = { nombre: r.Nombre_Producto, cantidad: 0, monto: 0 });
+    p.cantidad += num_(r.Cantidad); p.monto += num_(r.Subtotal);
+    cat[r.ID_Categoria] = (cat[r.ID_Categoria] || 0) + num_(r.Subtotal);
+    margen += num_(r.Subtotal) - num_(r.Costo_Unitario) * num_(r.Cantidad);
+  });
+  const catNames = {}; readAll_('Categorias').forEach(function (c) { catNames[c.ID_Categoria] = c.Nombre; });
+  const top = Object.keys(prod).map(function (k) { return prod[k]; }).sort(function (a, b) { return b.cantidad - a.cantidad; }).slice(0, 10);
+  const porCategoria = Object.keys(cat).map(function (k) { return { categoria: catNames[k] || 'Sin categoría', monto: round2_(cat[k]) }; })
+    .sort(function (a, b) { return b.monto - a.monto; });
+  const del = {};
+  readAll_('Servicios_Delivery').forEach(function (s) {
+    const f = String(s.Fecha).slice(0, 10);
+    if (s.Estado !== 'Finalizado' || f < desde || f > hasta) return;
+    const o = del[s.Nombre_Delivery] || (del[s.Nombre_Delivery] = { nombre: s.Nombre_Delivery, servicios: 0, monto: 0, km: 0 });
+    o.servicios++; o.monto += num_(s.Monto_Delivery); o.km += num_(s.Distancia_Km);
+  });
+  const bajoStock = readAll_('Productos').filter(function (p) { return bool_(p.Activo) && num_(p.Stock_Actual) <= num_(p.Stock_Minimo); })
+    .map(function (p) { return { nombre: p.Nombre, stock: num_(p.Stock_Actual), minimo: num_(p.Stock_Minimo) }; });
+  return {
+    ventas: ventas.length, total: round2_(total), ticketPromedio: ventas.length ? round2_(total / ventas.length) : 0,
+    margen: round2_(margen),
+    topProductos: top.map(function (p) { return { nombre: p.nombre, cantidad: round2_(p.cantidad), monto: round2_(p.monto) }; }),
+    porDia: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'].map(function (n) { return { dia: n, ventas: porDia[n].ventas, monto: round2_(porDia[n].monto) }; }),
+    porHora: Object.keys(porHora).sort().map(function (h) { return { hora: h + ':00', ventas: porHora[h] }; }),
+    porCategoria: porCategoria,
+    delivery: Object.keys(del).map(function (k) { return { nombre: del[k].nombre, servicios: del[k].servicios, monto: round2_(del[k].monto), km: round2_(del[k].km) }; }),
+    bajoStock: bajoStock
+  };
+}
+
+// ---------- Archivos (imágenes, logo, PDF) ----------
+function driveFolder_() {
+  const it = DriveApp.getFoldersByName(DRIVE_FOLDER_NAME);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(DRIVE_FOLDER_NAME);
+}
+
+function subirArchivo_(ctx, d) {
+  const modulo = d.modulo || 'Inventario';
+  if (MODULES.indexOf(modulo) < 0) fail_('Módulo inválido');
+  if (!can_(ctx, modulo, 'Crear') && !can_(ctx, modulo, 'Editar')) fail_('No tienes permiso para subir archivos en ' + modulo, 'PERM');
+  const mime = String(d.mime || '');
+  const permitidos = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
+  if (permitidos.indexOf(mime) < 0) fail_('Tipo de archivo no permitido');
+  if (!d.base64 || d.base64.length > 8 * 1024 * 1024) fail_('Archivo vacío o demasiado grande (máx. ~6 MB)');
+  const blob = Utilities.newBlob(Utilities.base64Decode(d.base64), mime, String(d.nombre || 'archivo').replace(/[^\w.\- ]/g, '_'));
+  const file = driveFolder_().createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const id = file.getId();
+  audit_(ctx, modulo, 'Crear', id, 'Archivo ' + file.getName());
+  return {
+    id: id,
+    url: mime === 'application/pdf' ? 'https://drive.google.com/file/d/' + id + '/view' : 'https://drive.google.com/thumbnail?id=' + id + '&sz=w800'
+  };
+}
+
+function guardarConfig_(ctx, d) {
+  need_(ctx, 'Configuracion', 'Editar');
+  const cambios = d.valores || {};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    Object.keys(cambios).forEach(function (k) {
+      const cur = findBy_('Configuracion', 'Clave', k);
+      if (cur) update_('Configuracion', cur._row, { Valor: cambios[k] });
+      else insert_('Configuracion', { Clave: k, Valor: cambios[k], Descripcion: '' });
+    });
+  } finally { lock.releaseLock(); }
+  audit_(ctx, 'Configuracion', 'Editar', '', Object.keys(cambios).join(', '));
+  return config_();
+}
+
+// ---------- Usuarios y permisos ----------
+function usuariosCrear_(ctx, d) {
+  need_(ctx, 'Usuarios', 'Crear');
+  const email = String(d.Email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail_('Correo inválido');
+  if (!d.Nombre) fail_('Falta el nombre');
+  checkPassword_(d.password);
+  if (!findBy_('Roles', 'ID_Rol', d.ID_Rol)) fail_('Rol inválido');
+  if (d.ID_Rol === MASTER_ROLE && !isMaster_(ctx)) fail_('Solo un Master puede crear otro Master', 'PERM');
+  if (readAll_('Usuarios').some(function (u) { return String(u.Email).trim().toLowerCase() === email; })) fail_('Ya existe un usuario con ese correo');
+  const salt = Utilities.getUuid();
+  const row = {
+    ID_Usuario: newId_('U'), Email: email, Nombre: d.Nombre, Telefono: d.Telefono || '', ID_Rol: d.ID_Rol,
+    ID_Delivery: d.ID_Delivery || '', Activo: true, Password_Hash: hash_(String(d.password), salt), Salt: salt,
+    Ultimo_Login: '', Fecha_Creacion: fmtDT_(new Date())
+  };
+  insert_('Usuarios', row);
+  audit_(ctx, 'Usuarios', 'Crear', row.ID_Usuario, email);
+  return { ID_Usuario: row.ID_Usuario };
+}
+
+function usuariosActualizar_(ctx, d) {
+  need_(ctx, 'Usuarios', 'Editar');
+  const u = findBy_('Usuarios', 'ID_Usuario', d.ID_Usuario);
+  if (!u) fail_('Usuario no encontrado');
+  const patch = {};
+  ['Nombre', 'Telefono', 'ID_Delivery'].forEach(function (c) { if (d[c] !== undefined) patch[c] = d[c]; });
+  if (d.ID_Rol !== undefined) {
+    if (!findBy_('Roles', 'ID_Rol', d.ID_Rol)) fail_('Rol inválido');
+    if ((d.ID_Rol === MASTER_ROLE || u.ID_Rol === MASTER_ROLE) && !isMaster_(ctx)) fail_('Solo un Master puede cambiar este rol', 'PERM');
+    patch.ID_Rol = d.ID_Rol;
+  }
+  if (d.Activo !== undefined) {
+    if (u.ID_Usuario === ctx.user.ID_Usuario && !d.Activo) fail_('No puedes deshabilitarte a ti mismo');
+    patch.Activo = !!d.Activo;
+  }
+  update_('Usuarios', u._row, patch);
+  ctxBump_();
+  audit_(ctx, 'Usuarios', 'Editar', u.ID_Usuario, JSON.stringify(Object.keys(patch)));
+  return true;
+}
+
+function usuariosPassword_(ctx, d) {
+  need_(ctx, 'Usuarios', 'Editar');
+  const u = findBy_('Usuarios', 'ID_Usuario', d.ID_Usuario);
+  if (!u) fail_('Usuario no encontrado');
+  if (u.ID_Rol === MASTER_ROLE && !isMaster_(ctx)) fail_('Solo un Master puede cambiar esta contraseña', 'PERM');
+  checkPassword_(d.password);
+  const salt = Utilities.getUuid();
+  update_('Usuarios', u._row, { Salt: salt, Password_Hash: hash_(String(d.password), salt) });
+  audit_(ctx, 'Usuarios', 'Editar', u.ID_Usuario, 'Contraseña restablecida');
+  return true;
+}
+
+// Guarda la matriz completa de permisos de un rol o de un usuario
+function permisosGuardar_(ctx, d) {
+  if (!isMaster_(ctx)) fail_('Solo el Master puede modificar permisos', 'PERM');
+  const porUsuario = !!d.ID_Usuario;
+  const tabla = porUsuario ? 'Permisos_Usuario' : 'Permisos';
+  if (!porUsuario && d.ID_Rol === MASTER_ROLE) fail_('El rol Master siempre tiene todos los permisos');
+  if (!porUsuario && !findBy_('Roles', 'ID_Rol', d.ID_Rol)) fail_('Rol inválido');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const existentes = readAll_(tabla);
+    (d.matriz || []).forEach(function (m) {
+      if (MODULES.indexOf(m.Modulo) < 0) return;
+      const vals = {};
+      ACTIONS_LIST.forEach(function (a) { vals[a] = !!m[a]; });
+      let cur = null;
+      for (let i = 0; i < existentes.length; i++) {
+        const r = existentes[i];
+        if (r.Modulo === m.Modulo && (porUsuario ? r.ID_Usuario === d.ID_Usuario : r.ID_Rol === d.ID_Rol)) { cur = r; break; }
+      }
+      if (cur) update_(tabla, cur._row, vals);
+      else if (porUsuario) insert_(tabla, Object.assign({ ID_PermU: newId_('PU'), ID_Usuario: d.ID_Usuario, Modulo: m.Modulo }, vals));
+      else insert_(tabla, Object.assign({ ID_Permiso: d.ID_Rol + '-' + m.Modulo, ID_Rol: d.ID_Rol, Modulo: m.Modulo }, vals));
+    });
+  } finally { lock.releaseLock(); }
+  ctxBump_();
+  audit_(ctx, 'Usuarios', 'Editar', d.ID_Usuario || d.ID_Rol, 'Permisos actualizados');
+  return true;
+}
+
+// ---------- Exportar a Excel (los datos; el archivo lo arma la app) ----------
+function exportar_(ctx, d) {
+  need_(ctx, 'Reportes', 'Exportar');
+  const permitidas = { Productos: 'Inventario', Categorias: 'Categorias', Clientes: 'Clientes', Proveedores: 'Proveedores',
+    Ventas: 'Ventas', Detalle_Venta: 'Ventas', Servicios_Delivery: 'Delivery', Movimientos_Inventario: 'Inventario',
+    Deliverys: 'Delivery', Compras: 'Proveedores' };
+  const out = {};
+  (d.hojas || []).forEach(function (h) {
+    if (!permitidas[h]) return;
+    if (!can_(ctx, permitidas[h], 'Ver')) return;
+    out[h] = readAll_(h).map(function (r) { return cleanRow_(h, r); });
+  });
+  audit_(ctx, 'Reportes', 'Exportar', '', Object.keys(out).join(', '));
+  return out;
+}
+
+// ============================================================
+//  INSTALACIÓN: crea todas las hojas, datos base y el usuario Master.
+//  Pasos: 1) edita ADMIN_EMAIL y ADMIN_PASSWORD en Config.gs
+//         2) en el editor elige la función "instalar" y presiona Ejecutar
+//  Es seguro ejecutarla de nuevo: no borra datos existentes.
+// ============================================================
+function instalar() {
+  if (ADMIN_EMAIL === 'cambia@tucorreo.com') throw new Error('Edita ADMIN_EMAIL y ADMIN_PASSWORD en Config.gs antes de instalar.');
+  checkPassword_(ADMIN_PASSWORD);
+  const ss = ss_();
+  const textCols = /^(ID_|Codigo_Barras$|SKU$|Documento$|Telefono$|Folio$|Unidad$|Abreviatura$|Clave$)/;
+  Object.keys(SCHEMA).forEach(function (name) {
+    let sh = ss.getSheetByName(name);
+    const h = SCHEMA[name];
+    if (!sh) sh = ss.insertSheet(name);
+    sh.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold').setBackground('#1F3864').setFontColor('#FFFFFF');
+    sh.setFrozenRows(1);
+    h.forEach(function (c, i) {
+      if (textCols.test(c)) sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat('@');
+    });
+  });
+  // Quitar la hoja vacía por defecto
+  ['Hoja 1', 'Sheet1', 'Hoja1'].forEach(function (n) {
+    const s = ss.getSheetByName(n);
+    if (s && ss.getSheets().length > 1 && s.getLastRow() <= 1 && s.getLastColumn() <= 1) ss.deleteSheet(s);
+  });
+  // Datos base
+  Object.keys(SEED).forEach(function (name) {
+    const key = SCHEMA[name][0];
+    const existentes = {};
+    readAll_(name).forEach(function (r) { existentes[String(r[key])] = true; });
+    SEED[name].forEach(function (row) {
+      if (existentes[String(row[0])]) return;
+      const o = {};
+      SCHEMA[name].forEach(function (c, i) { o[c] = row[i]; });
+      insert_(name, o);
+    });
+  });
+  // Usuario Master
+  const email = ADMIN_EMAIL.trim().toLowerCase();
+  const ya = readAll_('Usuarios').some(function (u) { return String(u.Email).toLowerCase() === email; });
+  if (!ya) {
+    const salt = Utilities.getUuid();
+    insert_('Usuarios', {
+      ID_Usuario: 'U0001', Email: email, Nombre: 'Administrador', Telefono: '', ID_Rol: MASTER_ROLE, ID_Delivery: '',
+      Activo: true, Password_Hash: hash_(ADMIN_PASSWORD, salt), Salt: salt, Ultimo_Login: '', Fecha_Creacion: fmtDT_(new Date())
+    });
+  }
+  driveFolder_();
+  Logger.log('Instalación lista. Ahora publica: Implementar > Nueva implementación > Aplicación web.');
+}

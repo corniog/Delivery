@@ -19,10 +19,11 @@ docs/      Plantilla de la base de datos (referencia).
 ### Parte 1 — El servidor (tu Google Sheet)
 1. Entra a [sheets.new](https://sheets.new) y ponle de nombre, por ejemplo, **Base Negocio**.
 2. Menú **Extensiones → Apps Script**.
-3. Borra el archivo `Código.gs` que viene vacío y crea **4 archivos** con estos nombres exactos,
-   pegando el contenido de cada uno desde la carpeta `backend/` de este repositorio:
-   `Schema`, `Config`, `Code`, `Setup` (Apps Script les agrega `.gs` solo).
-4. En `Config`, cambia **ADMIN_EMAIL** (tu correo) y **ADMIN_PASSWORD** (una clave de 8+ caracteres).
+3. Vas a pegar **un solo archivo**. En GitHub abre `backend/TODO_EN_UN_ARCHIVO.gs` y presiona el ícono
+   **Copy raw file** (dos cuadritos, arriba a la derecha del código). Vuelve a Apps Script, haz clic dentro del
+   editor, **borra todo** lo que haya en `Código.gs` (Ctrl+A, Supr) y **pega** (Ctrl+V). Guarda con el ícono 💾.
+   *(Los otros archivos de `backend/` son los mismos trozos por separado; no hace falta usarlos.)*
+4. Al principio del código pegado, cambia **ADMIN_EMAIL** (tu correo) y **ADMIN_PASSWORD** (una clave de 8+ caracteres).
 5. Arriba, en el selector de funciones elige **instalar** y presiona **Ejecutar**.
    Google pedirá permisos (Sheets y Drive): *Revisar permisos → tu cuenta → Avanzado → Ir a… → Permitir*.
    Esto crea todas las hojas, los roles, los permisos base y tu usuario Master.
