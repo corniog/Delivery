@@ -10,6 +10,11 @@ on:
       url_api:
         description: 'URL /exec del Apps Script de ESTE negocio (vacío = la de web/public/config.json)'
         default: ''
+      modo:
+        description: 'en_vivo = se actualiza sola desde GitHub (recomendado) | empaquetada = lleva las pantallas dentro (funciona igual, pero exige APK nueva en cada cambio)'
+        type: choice
+        options: [en_vivo, empaquetada]
+        default: en_vivo
       id_app:
         description: 'ID único de la app, minúsculas y puntos (ej: cl.minegocio.delivery). No lo cambies después.'
         default: 'cl.corniog.negocio'
@@ -35,6 +40,8 @@ jobs:
           NOMBRE: ${{ inputs.nombre_app }}
           URL: ${{ inputs.url_api }}
           IDAPP: ${{ inputs.id_app }}
+          MODO: ${{ inputs.modo }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: |
           pip install pillow
           python3 - <<'PY'
@@ -49,6 +56,13 @@ jobs:
           url = os.environ.get('URL', '').strip()
           if url:
               json.dump({'API_URL': url}, open('public/config.json', 'w'), indent=2)
+          if os.environ.get('MODO', 'en_vivo') == 'en_vivo':
+              # La APK abre la web publicada en GitHub Pages: cada cambio llega solo, sin reinstalar
+              from urllib.parse import quote
+              start = os.environ['PAGES_URL'] + (('?api=' + quote(url, safe='')) if url else '')
+              c['server']['url'] = start
+              json.dump(c, open('capacitor.config.json', 'w'), ensure_ascii=False, indent=2)
+              print('Modo en vivo ->', start)
           open(os.environ['GITHUB_ENV'], 'a').write('VITE_APP_NAME=' + nombre + '\n')
           # Ícono propio del negocio: sube iconos/<ID de la app>.png (cuadrado, mín. 512x512) al repo
           from PIL import Image

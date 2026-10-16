@@ -10,6 +10,13 @@ const store = {
 // La URL puede venir de (1) lo guardado en el login, (2) public/config.json, (3) la variable VITE_API_URL
 let fileUrl = '';
 export async function loadConfig() {
+  // La APK "en vivo" abre la web con ?api=<URL del negocio>. Solo se acepta dentro de la app nativa
+  // (así un link malicioso en un navegador normal no puede cambiar a qué servidor se conecta el usuario).
+  try {
+    const cap = window.Capacitor;
+    const q = new URLSearchParams(window.location.search).get('api');
+    if (q && cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform() && /^https:\/\//i.test(q)) store.set('api_url', q.trim());
+  } catch { /* ignorar */ }
   try {
     const r = await fetch('./config.json', { cache: 'no-store' });
     if (r.ok) fileUrl = String((await r.json()).API_URL || '').trim();

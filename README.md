@@ -99,6 +99,7 @@ Menú **Compras** → **Nueva compra**: elige proveedor, agrega productos (busca
 La APK se genera sola en GitHub (gratis), a partir de la misma web:
 1. En tu repo: pestaña **Actions** → **Crear APK** → **Run workflow**. Completa **nombre** (el que se ve bajo el ícono), **URL del Apps Script de ese negocio** y un **ID único** (ej. `cl.minegocio.delivery`). Tarda ~5-8 min.
 2. Al terminar, en **Releases** (columna derecha del repo) aparece **App Android (APK)** con el archivo `app-negocio.apk`.
+   **Modo:** *en_vivo* (por defecto) hace que la APK abra tu web de GitHub Pages, así los cambios de pantallas llegan solos sin reinstalar (necesita internet). *empaquetada* guarda las pantallas dentro de la APK.
 3. Desde el celular abre esa página de Releases, descarga el APK e instálalo (Android pedirá permitir "instalar apps de orígenes desconocidos").
 4. **Ícono propio:** sube una imagen PNG (ideal cuadrada de 1024×1024; si no es cuadrada se centra completa sobre un fondo, sin recortarla) a la carpeta `iconos/` del repo con el **mismo nombre del ID de la app**, por ejemplo `iconos/cl.minegocio.delivery.png`. Al generar la APK con ese ID, se usa como ícono. Sin archivo, usa el ícono genérico.
 5. Cada APK queda atada al servidor (Apps Script) que escribiste: muestra el logo y datos de **ese** negocio. Para otro cliente, genera otra APK con su URL, nombre e ID. No publiques en Play Store una APK con tu URL si es para otros negocios.
