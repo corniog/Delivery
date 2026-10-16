@@ -57,7 +57,7 @@ docs/      Plantilla de la base de datos (referencia).
 
 ## Suscripción y bloqueo (control del proveedor)
 El control vive en **un Sheet aparte, privado, solo tuyo** (el proveedor). La app de cada cliente consulta ese Sheet; si la suscripción
-venció o la suspendes, **toda la app se bloquea** y muestra un botón **Contactar por WhatsApp** (56968005177).
+venció o la suspendes, **toda la app se bloquea** y muestra un botón **Contactar por WhatsApp** ((XX)XXXXXXXXX).
 
 ### Configurar el servidor de licencias (una sola vez)
 1. Crea un Google Sheet nuevo, privado (nómbralo "Licencias"). **Extensiones → Apps Script**.
