@@ -2038,14 +2038,18 @@ function crearHojas_() {
   const ss = ss_();
   const textCols = /^(ID_|Codigo_Barras$|SKU$|Documento$|Telefono$|Folio$|Unidad$|Abreviatura$|Clave$)/;
   Object.keys(SCHEMA).forEach(function (name) {
-    let sh = ss.getSheetByName(name);
-    const h = SCHEMA[name];
-    if (!sh) sh = ss.insertSheet(name);
-    sh.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold').setBackground('#1F3864').setFontColor('#FFFFFF');
-    sh.setFrozenRows(1);
-    h.forEach(function (c, i) {
-      if (textCols.test(c)) sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat('@');
-    });
+    try {
+      let sh = ss.getSheetByName(name);
+      const h = SCHEMA[name];
+      if (!sh) sh = ss.insertSheet(name);
+      sh.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold').setBackground('#1F3864').setFontColor('#FFFFFF');
+      sh.setFrozenRows(1);
+      h.forEach(function (c, i) {
+        if (textCols.test(c)) sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat('@');
+      });
+    } catch (e) {
+      throw new Error('No se pudo preparar la hoja "' + name + '": ' + e.message + ' (revisa que no esté protegida y que tu cuenta sea editora del Sheet)');
+    }
   });
   // Quitar la hoja vacía por defecto
   ['Hoja 1', 'Sheet1', 'Hoja1'].forEach(function (n) {
