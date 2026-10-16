@@ -259,6 +259,11 @@ T["Auditoria"] = [
  ("Detalle","LongText","Detalle del cambio","Producto creado"),
 ]
 
+T["Suscripcion"] = [
+ ("Campo","Text (KEY)","Nombre del dato: Plan, Vencimiento o Contacto_WhatsApp","Plan"),
+ ("Valor","Text","Plan: lo que quieras (MENSUAL, ANUAL...). Vencimiento: fecha (dd-mm-aaaa); si queda vacío NO vence. Contacto_WhatsApp: número con código de país, sin + ni espacios","MENSUAL"),
+]
+
 # seed rows
 modules = ["Inventario","Categorias","Ventas","Clientes","Proveedores","Delivery","Historial","Conocimiento","Reportes","KPI","Usuarios","Configuracion"]
 roles = [("R01","Master","Acceso total"),("R02","Ventas","Vende, consulta inventario, asigna delivery"),("R03","Delivery","Solo ve y gestiona sus servicios")]
@@ -291,6 +296,8 @@ seed["Configuracion"] = [
  ["ALERTA_STOCK_ACTIVA","TRUE","Activa las alertas de stock mínimo"],
  ["LOGO","","URL del logo (se sube desde Configuración)"],
 ]
+
+seed["Suscripcion"] = [["Plan",""],["Vencimiento",""],["Contacto_WhatsApp","56968005177"]]
 
 wb = Workbook()
 ws0 = wb.active; ws0.title = "LEEME"
@@ -394,3 +401,10 @@ with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","backend"
     f.write("const SCHEMA = "+json.dumps(schema,ensure_ascii=False,indent=1)+";\n\n")
     f.write("const SEED = "+json.dumps(seeds,ensure_ascii=False,indent=1)+";\n")
 print("Schema.gs written")
+
+# ---- archivo único para pegar en Apps Script ----
+base = os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","backend")
+parts = [open(os.path.join(base,f),encoding="utf8").read() for f in ("Config.gs","Schema.gs","Code.gs","Setup.gs")]
+head = "// ============================================================\n//  CÓDIGO COMPLETO DEL SERVIDOR (un solo archivo para pegar en Apps Script)\n//  Contiene: Config + Schema + Code + Setup. Edita ADMIN_EMAIL y ADMIN_PASSWORD abajo.\n// ============================================================\n\n"
+open(os.path.join(base,"TODO_EN_UN_ARCHIVO.gs"),"w",encoding="utf8").write(head+"\n\n".join(parts))
+print("TODO_EN_UN_ARCHIVO.gs written")

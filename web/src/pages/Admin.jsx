@@ -4,6 +4,7 @@ import { useAuth } from '../auth.jsx';
 import { Modal, FileInput, useToast, Icon, fdt, Confirm } from '../ui.jsx';
 import Crud, { useTable } from '../Crud.jsx';
 import { Unidades } from './Simple.jsx';
+import { SubscriptionCard } from '../Suscripcion.jsx';
 
 const MODS = [['Inventario', 'Inventario'], ['Categorias', 'Categorías'], ['Ventas', 'Ventas'], ['Clientes', 'Clientes'], ['Proveedores', 'Proveedores'], ['Delivery', 'Delivery'],
   ['Historial', 'Historial'], ['Conocimiento', 'Base de conocimiento'], ['Reportes', 'Reportes'], ['KPI', 'KPI'], ['Usuarios', 'Usuarios'], ['Configuracion', 'Configuración']];
@@ -42,7 +43,7 @@ const CFG = [
   ['TARIFA_KM_DELIVERY', 'Tarifa por km de delivery'], ['ORIGEN_LATLONG', 'Coordenadas del local (lat,long)']
 ];
 export function Configuracion() {
-  const { config, refresh, can } = useAuth();
+  const { config, refresh, can, user } = useAuth();
   const toast = useToast();
   const [v, setV] = useState({ ...config });
   const [busy, setBusy] = useState(false);
@@ -55,6 +56,7 @@ export function Configuracion() {
   return (
     <div className="stack">
       <div className="pagehead"><h1>Configuración</h1></div>
+      {user.ID_Rol === 'R01' && <SubscriptionCard />}
       <div className="card stack">
         <h2>Logo y color</h2>
         <p className="muted small">El logo aparece en el login, el menú, los tickets y el ícono de la pestaña, para todos los perfiles.</p>

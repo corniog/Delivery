@@ -7,6 +7,28 @@
 function instalar() {
   if (ADMIN_EMAIL === 'cambia@tucorreo.com') throw new Error('Edita ADMIN_EMAIL y ADMIN_PASSWORD en Config.gs antes de instalar.');
   checkPassword_(ADMIN_PASSWORD);
+  crearHojas_();
+  // Usuario Master
+  const email = ADMIN_EMAIL.trim().toLowerCase();
+  const ya = readAll_('Usuarios').some(function (u) { return String(u.Email).toLowerCase() === email; });
+  if (!ya) {
+    const salt = Utilities.getUuid();
+    insert_('Usuarios', {
+      ID_Usuario: 'U0001', Email: email, Nombre: 'Administrador', Telefono: '', ID_Rol: MASTER_ROLE, ID_Delivery: '',
+      Activo: true, Password_Hash: hash_(ADMIN_PASSWORD, salt), Salt: salt, Ultimo_Login: '', Fecha_Creacion: fmtDT_(new Date())
+    });
+  }
+  Logger.log('Instalación lista. Ahora publica: Implementar > Nueva implementación > Aplicación web.');
+}
+
+// Úsala después de PEGAR UNA VERSIÓN NUEVA del código: crea las hojas/datos que falten sin tocar nada existente
+// (no necesitas cambiar ADMIN_EMAIL ni ADMIN_PASSWORD).
+function actualizar() {
+  crearHojas_();
+  Logger.log('Estructura al día. Ahora: Implementar > Administrar implementaciones > ✏ > Versión: Nueva versión.');
+}
+
+function crearHojas_() {
   const ss = ss_();
   const textCols = /^(ID_|Codigo_Barras$|SKU$|Documento$|Telefono$|Folio$|Unidad$|Abreviatura$|Clave$)/;
   Object.keys(SCHEMA).forEach(function (name) {
@@ -36,16 +58,5 @@ function instalar() {
       insert_(name, o);
     });
   });
-  // Usuario Master
-  const email = ADMIN_EMAIL.trim().toLowerCase();
-  const ya = readAll_('Usuarios').some(function (u) { return String(u.Email).toLowerCase() === email; });
-  if (!ya) {
-    const salt = Utilities.getUuid();
-    insert_('Usuarios', {
-      ID_Usuario: 'U0001', Email: email, Nombre: 'Administrador', Telefono: '', ID_Rol: MASTER_ROLE, ID_Delivery: '',
-      Activo: true, Password_Hash: hash_(ADMIN_PASSWORD, salt), Salt: salt, Ultimo_Login: '', Fecha_Creacion: fmtDT_(new Date())
-    });
-  }
   driveFolder_();
-  Logger.log('Instalación lista. Ahora publica: Implementar > Nueva implementación > Aplicación web.');
 }

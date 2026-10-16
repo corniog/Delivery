@@ -102,4 +102,19 @@ ok(rt.call('login', { email: 'ventas@test.com', password: 'NuevaClave99' }));
 // bloqueo por intentos
 for (let i = 0; i < 5; i++) rt.call('login', { email: 'juan@test.com', password: 'x' });
 bad(rt.call('login', { email: 'juan@test.com', password: 'Juan123456' }), 'Demasiados intentos');
+// suscripción
+const setSub = (campo, valor) => { const rows = rt.sheets.Suscripcion.data; const r = rows.find(x => x[0] === campo); r[1] = valor; };
+const dayStr = (n) => { const d = new Date(Date.now() + n * 86400000); return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(d); };
+let sub = ok(rt.call('suscripcion', {}, T));
+assert.strictEqual(sub.estado, 'sin_vencimiento'); assert.strictEqual(sub.whatsapp, '56968005177'); assert.strictEqual(sub.diasRestantes, null);
+bad(rt.call('suscripcion', {}, V), 'Master');
+setSub('Plan', 'ANUAL'); setSub('Vencimiento', dayStr(30));
+sub = ok(rt.call('suscripcion', {}, T)); assert.strictEqual(sub.plan, 'ANUAL'); assert.strictEqual(sub.estado, 'activo'); assert.strictEqual(sub.diasRestantes, 30);
+const [yy, mm, dd] = dayStr(5).split('-'); setSub('Vencimiento', `${dd}-${mm}-${yy}`);
+sub = ok(rt.call('suscripcion', {}, T)); assert.strictEqual(sub.estado, 'por_vencer'); assert.strictEqual(sub.diasRestantes, 5);
+setSub('Vencimiento', dayStr(0)); assert.strictEqual(ok(rt.call('suscripcion', {}, T)).diasRestantes, 0);
+setSub('Vencimiento', dayStr(-3)); sub = ok(rt.call('suscripcion', {}, T)); assert.strictEqual(sub.estado, 'vencido'); assert.strictEqual(sub.diasRestantes, -3);
+setSub('Vencimiento', 'mañana'); assert.strictEqual(ok(rt.call('suscripcion', {}, T)).estado, 'fecha_invalida');
+setSub('Contacto_WhatsApp', '+56 9 6800 5177'); assert.strictEqual(ok(rt.call('suscripcion', {}, T)).whatsapp, '56968005177');
+setSub('Vencimiento', ''); assert.strictEqual(ok(rt.call('suscripcion', {}, T)).estado, 'sin_vencimiento');
 console.log('✔ Backend: todas las pruebas pasaron');

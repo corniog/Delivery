@@ -33,7 +33,12 @@ docs/      Plantilla de la base de datos (referencia).
    - Presiona **Implementar** y **copia la URL** que termina en `/exec`.
 
    > "Cualquier persona" solo permite llegar a la API: sin usuario y contraseña no se puede leer ni escribir nada.
-7. Si después cambias el código de Apps Script: **Implementar → Administrar implementaciones → ✏ → Versión: Nueva versión**.
+7. **Cuando haya una versión nueva del código** (actualizaciones):
+   1. Copia de nuevo `backend/TODO_EN_UN_ARCHIVO.gs` y pégalo en Apps Script reemplazando todo lo anterior.
+   2. Elige la función **actualizar** (no `instalar`) y presiona **Ejecutar**. Crea solo lo que falte y no toca tus datos;
+      **no necesitas volver a poner tu correo ni tu clave**.
+   3. **Implementar → Administrar implementaciones → ✏ (editar) → Versión: Nueva versión → Implementar.**
+      La URL se mantiene igual.
 
 ### Parte 2 — La web (GitHub Pages)
 1. En este repositorio: **Settings → Pages → Source: GitHub Actions**.
@@ -49,6 +54,19 @@ docs/      Plantilla de la base de datos (referencia).
 3. **Usuarios y permisos** → crea tu equipo (Ventas, Delivery) y ajusta qué puede hacer cada rol o cada persona.
 4. **Categorías** (con imagen) → **Inventario** → ya puedes **Vender**.
 5. **Celular:** abre el link en Chrome → menú ⋮ → **Instalar aplicación** (iPhone: Compartir → Añadir a pantalla de inicio).
+
+## Suscripción
+La hoja **Suscripcion** del Sheet tiene tres filas (Campo / Valor):
+
+| Campo | Valor |
+|---|---|
+| Plan | MENSUAL, ANUAL o lo que quieras |
+| Vencimiento | Fecha, ej. `13-11-2026`. **Vacío = no vence** |
+| Contacto_WhatsApp | Número con código de país, sin `+` ni espacios (ej. `56968005177`) |
+
+El Master ve en **Configuración → Mi suscripción** el plan, el vencimiento, los días que faltan y un botón
+**Contactar por WhatsApp** (abre `wa.me` con un mensaje listo). En **Inicio** le aparece un aviso cuando faltan 7 días o menos, o ya venció.
+Por ahora es informativo: no bloquea la app al vencer.
 
 ## Perfiles incluidos
 | Rol | Puede |

@@ -5,6 +5,7 @@ import { useAuth } from '../auth.jsx';
 import { Icon, Modal, BarList, useFmt, useToast, fdt, today, daysAgo, Confirm } from '../ui.jsx';
 import Ticket from '../Ticket.jsx';
 import { DeliveryHistory } from './Delivery.jsx';
+import { SubscriptionBanner } from '../Suscripcion.jsx';
 
 export function Dashboard() {
   const { user, can, brand } = useAuth();
@@ -21,6 +22,7 @@ export function Dashboard() {
   return (
     <div className="stack">
       <div className="pagehead"><h1>Hola, {user.Nombre.split(' ')[0]}</h1><span className="muted">{brand.NOMBRE_NEGOCIO}</span></div>
+      <SubscriptionBanner />
       {alerts.length > 0 && (
         <div className="stack">
           <div className="row"><h2 className="grow"><Icon n="bell" /> Alertas ({alerts.length})</h2><button className="btn sm" onClick={() => read([], true)}>Marcar todas como leídas</button></div>

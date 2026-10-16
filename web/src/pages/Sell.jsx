@@ -87,10 +87,10 @@ export default function Sell() {
       )}
       {!search && !cat && (
         cats.length ? (
-          <div className="grid cols">
+          <div className="grid tiles">
             {cats.map((c) => (
               <button key={c.ID_Categoria} className="tile" onClick={() => setCat(c)}>
-                {c.Imagen ? <img src={c.Imagen} alt="" /> : <div className="ph">{String(c.Nombre).slice(0, 1)}</div>}
+                <div className="timg">{c.Imagen ? <img src={c.Imagen} alt="" loading="lazy" /> : <div className="ph">{String(c.Nombre).slice(0, 1)}</div>}</div>
                 <span>{c.Nombre}</span>
                 {countInCat(c.ID_Categoria) > 0 && <div className="cnt">{countInCat(c.ID_Categoria)}</div>}
               </button>))}

@@ -68,7 +68,8 @@ const ACTIONS = {
   usuariosActualizar: usuariosActualizar_,
   usuariosPassword: usuariosPassword_,
   permisosGuardar: permisosGuardar_,
-  exportar: exportar_
+  exportar: exportar_,
+  suscripcion: suscripcion_
 };
 
 // Tablas que se pueden manejar con listar/crear/actualizar/eliminar
@@ -949,5 +950,35 @@ function exportar_(ctx, d) {
     out[h] = readAll_(h).map(function (r) { return cleanRow_(h, r); });
   });
   audit_(ctx, 'Reportes', 'Exportar', '', Object.keys(out).join(', '));
+  return out;
+}
+
+// ---------- Suscripción (plan, vencimiento y contacto) ----------
+// Se lee de la hoja "Suscripcion": filas Plan, Vencimiento, Contacto_WhatsApp. Si Vencimiento está vacío, no vence.
+function parseFecha_(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const t = String(v).trim();
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);            // 2026-11-13 o 2026-11-13T00:00:00
+  if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+  m = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);  // 13-11-2026, 13/11/2026
+  if (m) return { y: +m[3], m: +m[2], d: +m[1] };
+  return undefined;                                         // escrito pero no se entiende
+}
+
+function suscripcion_(ctx, d) {
+  if (!isMaster_(ctx)) fail_('Solo el Master puede ver la suscripción', 'PERM');
+  const o = {};
+  readAll_('Suscripcion').forEach(function (r) { o[String(r.Campo).trim()] = r.Valor; });
+  const plan = String(o.Plan === undefined ? '' : o.Plan).trim();
+  const wa = String(o.Contacto_WhatsApp === undefined ? '' : o.Contacto_WhatsApp).replace(/\D/g, '');
+  const f = parseFecha_(o.Vencimiento);
+  const out = { plan: plan, whatsapp: wa, vencimiento: '', diasRestantes: null, estado: 'sin_vencimiento' };
+  if (f === undefined) { out.estado = 'fecha_invalida'; return out; }
+  if (f === null) return out;
+  const hoy = fmtD_(new Date()).split('-');
+  const dias = Math.round((Date.UTC(f.y, f.m - 1, f.d) - Date.UTC(+hoy[0], +hoy[1] - 1, +hoy[2])) / 86400000);
+  out.vencimiento = f.y + '-' + pad_(f.m, 2) + '-' + pad_(f.d, 2);
+  out.diasRestantes = dias;
+  out.estado = dias < 0 ? 'vencido' : dias <= 7 ? 'por_vencer' : 'activo';
   return out;
 }

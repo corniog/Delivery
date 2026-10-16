@@ -17,6 +17,7 @@ const MODULES = ['Inventario', 'Categorias', 'Ventas', 'Clientes', 'Proveedores'
   'Historial', 'Conocimiento', 'Reportes', 'KPI', 'Usuarios', 'Configuracion'];
 const ACTIONS_LIST = ['Ver', 'Crear', 'Editar', 'Eliminar', 'Exportar'];
 
+
 // GENERADO desde la base de datos. Define las hojas (tablas) y sus columnas.
 const SCHEMA = {
  "Usuarios": [
@@ -262,6 +263,10 @@ const SCHEMA = {
   "Accion",
   "Registro",
   "Detalle"
+ ],
+ "Suscripcion": [
+  "Campo",
+  "Valor"
  ]
 };
 
@@ -735,8 +740,23 @@ const SEED = {
    "",
    "URL del logo (se sube desde Configuración)"
   ]
+ ],
+ "Suscripcion": [
+  [
+   "Plan",
+   ""
+  ],
+  [
+   "Vencimiento",
+   ""
+  ],
+  [
+   "Contacto_WhatsApp",
+   "56968005177"
+  ]
  ]
 };
+
 
 // ============================================================
 //  API del negocio  -  Google Apps Script (Web App)
@@ -808,7 +828,8 @@ const ACTIONS = {
   usuariosActualizar: usuariosActualizar_,
   usuariosPassword: usuariosPassword_,
   permisosGuardar: permisosGuardar_,
-  exportar: exportar_
+  exportar: exportar_,
+  suscripcion: suscripcion_
 };
 
 // Tablas que se pueden manejar con listar/crear/actualizar/eliminar
@@ -1692,6 +1713,37 @@ function exportar_(ctx, d) {
   return out;
 }
 
+// ---------- Suscripción (plan, vencimiento y contacto) ----------
+// Se lee de la hoja "Suscripcion": filas Plan, Vencimiento, Contacto_WhatsApp. Si Vencimiento está vacío, no vence.
+function parseFecha_(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const t = String(v).trim();
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);            // 2026-11-13 o 2026-11-13T00:00:00
+  if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+  m = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);  // 13-11-2026, 13/11/2026
+  if (m) return { y: +m[3], m: +m[2], d: +m[1] };
+  return undefined;                                         // escrito pero no se entiende
+}
+
+function suscripcion_(ctx, d) {
+  if (!isMaster_(ctx)) fail_('Solo el Master puede ver la suscripción', 'PERM');
+  const o = {};
+  readAll_('Suscripcion').forEach(function (r) { o[String(r.Campo).trim()] = r.Valor; });
+  const plan = String(o.Plan === undefined ? '' : o.Plan).trim();
+  const wa = String(o.Contacto_WhatsApp === undefined ? '' : o.Contacto_WhatsApp).replace(/\D/g, '');
+  const f = parseFecha_(o.Vencimiento);
+  const out = { plan: plan, whatsapp: wa, vencimiento: '', diasRestantes: null, estado: 'sin_vencimiento' };
+  if (f === undefined) { out.estado = 'fecha_invalida'; return out; }
+  if (f === null) return out;
+  const hoy = fmtD_(new Date()).split('-');
+  const dias = Math.round((Date.UTC(f.y, f.m - 1, f.d) - Date.UTC(+hoy[0], +hoy[1] - 1, +hoy[2])) / 86400000);
+  out.vencimiento = f.y + '-' + pad_(f.m, 2) + '-' + pad_(f.d, 2);
+  out.diasRestantes = dias;
+  out.estado = dias < 0 ? 'vencido' : dias <= 7 ? 'por_vencer' : 'activo';
+  return out;
+}
+
+
 // ============================================================
 //  INSTALACIÓN: crea todas las hojas, datos base y el usuario Master.
 //  Pasos: 1) edita ADMIN_EMAIL y ADMIN_PASSWORD en Config.gs
@@ -1701,6 +1753,28 @@ function exportar_(ctx, d) {
 function instalar() {
   if (ADMIN_EMAIL === 'cambia@tucorreo.com') throw new Error('Edita ADMIN_EMAIL y ADMIN_PASSWORD en Config.gs antes de instalar.');
   checkPassword_(ADMIN_PASSWORD);
+  crearHojas_();
+  // Usuario Master
+  const email = ADMIN_EMAIL.trim().toLowerCase();
+  const ya = readAll_('Usuarios').some(function (u) { return String(u.Email).toLowerCase() === email; });
+  if (!ya) {
+    const salt = Utilities.getUuid();
+    insert_('Usuarios', {
+      ID_Usuario: 'U0001', Email: email, Nombre: 'Administrador', Telefono: '', ID_Rol: MASTER_ROLE, ID_Delivery: '',
+      Activo: true, Password_Hash: hash_(ADMIN_PASSWORD, salt), Salt: salt, Ultimo_Login: '', Fecha_Creacion: fmtDT_(new Date())
+    });
+  }
+  Logger.log('Instalación lista. Ahora publica: Implementar > Nueva implementación > Aplicación web.');
+}
+
+// Úsala después de PEGAR UNA VERSIÓN NUEVA del código: crea las hojas/datos que falten sin tocar nada existente
+// (no necesitas cambiar ADMIN_EMAIL ni ADMIN_PASSWORD).
+function actualizar() {
+  crearHojas_();
+  Logger.log('Estructura al día. Ahora: Implementar > Administrar implementaciones > ✏ > Versión: Nueva versión.');
+}
+
+function crearHojas_() {
   const ss = ss_();
   const textCols = /^(ID_|Codigo_Barras$|SKU$|Documento$|Telefono$|Folio$|Unidad$|Abreviatura$|Clave$)/;
   Object.keys(SCHEMA).forEach(function (name) {
@@ -1730,16 +1804,5 @@ function instalar() {
       insert_(name, o);
     });
   });
-  // Usuario Master
-  const email = ADMIN_EMAIL.trim().toLowerCase();
-  const ya = readAll_('Usuarios').some(function (u) { return String(u.Email).toLowerCase() === email; });
-  if (!ya) {
-    const salt = Utilities.getUuid();
-    insert_('Usuarios', {
-      ID_Usuario: 'U0001', Email: email, Nombre: 'Administrador', Telefono: '', ID_Rol: MASTER_ROLE, ID_Delivery: '',
-      Activo: true, Password_Hash: hash_(ADMIN_PASSWORD, salt), Salt: salt, Ultimo_Login: '', Fecha_Creacion: fmtDT_(new Date())
-    });
-  }
   driveFolder_();
-  Logger.log('Instalación lista. Ahora publica: Implementar > Nueva implementación > Aplicación web.');
 }
