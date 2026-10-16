@@ -46,7 +46,11 @@ function createRuntime(opts = {}) {
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = v; } }) },
     CacheService: { getScriptCache: () => ({ get: k => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
-    Logger: { log: console.log },
+    Logger: { log: (...a) => { if (opts.verbose) console.log(...a); } },
+    UrlFetchApp: { fetch: (url) => {
+      if (!opts.urlFetch) throw new Error('sin red');
+      return opts.urlFetch(url);
+    } },
     Utilities: {
       DigestAlgorithm: { SHA_256: 'sha256' },
       computeDigest: (a, s) => Array.from(crypto.createHash('sha256').update(s).digest()).map(b => (b > 127 ? b - 256 : b)),
@@ -69,17 +73,26 @@ function createRuntime(opts = {}) {
   vm.createContext(sandbox);
   const dir = opts.backendDir || path.join(__dirname, '..', 'backend');
   // const/let de nivel superior no quedan en el sandbox; concatenamos todo en un solo script
-  const code = ['Schema.gs', 'Config.gs', 'Code.gs', 'Setup.gs'].map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
-  const patched = opts.admin ? code.replace("'cambia@tucorreo.com'", `'__x__'`).replace(/const ADMIN_EMAIL = '[^']*'/, `const ADMIN_EMAIL = '${opts.admin.email}'`).replace(/const ADMIN_PASSWORD = '[^']*'/, `const ADMIN_PASSWORD = '${opts.admin.password}'`) : code;
-  vm.runInContext(patched + '\n;this.__exports = { doPost, doGet, instalar, readAll_, route_ };', sandbox);
+  const srcFiles = opts.files || ['Schema.gs', 'Config.gs', 'Code.gs', 'Setup.gs'];
+  const code = srcFiles.map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+  let patched = code;
+  if (opts.admin) patched = patched.replace(/const ADMIN_EMAIL = '[^']*'/, `const ADMIN_EMAIL = '${opts.admin.email}'`).replace(/const ADMIN_PASSWORD = '[^']*'/, `const ADMIN_PASSWORD = '${opts.admin.password}'`);
+  if (opts.licencia) patched = patched.replace(/const LICENCIA_URL = '[^']*'/, `const LICENCIA_URL = '${opts.licencia.url}'`).replace(/const LICENCIA_ID = '[^']*'/, `const LICENCIA_ID = '${opts.licencia.id}'`);
+  const names = opts.exports || ['doPost', 'doGet', 'instalar', 'readAll_', 'route_'];
+  vm.runInContext(patched + '\n;this.__exports = { ' + names.join(', ') + ' };', sandbox);
   const ex = sandbox.__exports;
   return {
     sheets, files, install: () => ex.instalar(),
+    get(params) { return JSON.parse(ex.doGet({ parameter: params }).text); },
     call(accion, datos, token) {
       const out = ex.doPost({ postData: { contents: JSON.stringify({ accion, datos, token }) } });
       return JSON.parse(out.text);
     },
-    readAll: n => ex.readAll_(n)
+    readAll: n => ex.readAll_ && ex.readAll_(n),
+    ex,
+    advance(ms) { sandbox.__shift = (sandbox.__shift || 0) + ms; },
+    clearCache() { Object.keys(cache).filter(k => k.startsWith('lic_')).forEach(k => delete cache[k]); },
+    props
   };
 }
 module.exports = { createRuntime };

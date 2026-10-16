@@ -55,18 +55,31 @@ docs/      Plantilla de la base de datos (referencia).
 4. **Categorías** (con imagen) → **Inventario** → ya puedes **Vender**.
 5. **Celular:** abre el link en Chrome → menú ⋮ → **Instalar aplicación** (iPhone: Compartir → Añadir a pantalla de inicio).
 
-## Suscripción
-La hoja **Suscripcion** del Sheet tiene tres filas (Campo / Valor):
+## Suscripción y bloqueo (control del proveedor)
+El control vive en **un Sheet aparte, privado, solo tuyo** (el proveedor). La app de cada cliente consulta ese Sheet; si la suscripción
+venció o la suspendes, **toda la app se bloquea** y muestra un botón **Contactar por WhatsApp** (56968005177).
 
-| Campo | Valor |
+### Configurar el servidor de licencias (una sola vez)
+1. Crea un Google Sheet nuevo, privado (nómbralo "Licencias"). **Extensiones → Apps Script**.
+2. Pega el contenido de `licencias/Licencias.gs`. Ejecuta `instalar` (autoriza) y luego `nuevaLicencia` (una vez por cada cliente).
+3. En la hoja **Licencias** aparece una fila con la clave `LIC-...`. Completa **Plan**, **Vencimiento** (dd-mm-aaaa) y **Activo**.
+4. **Implementar → Nueva implementación → Aplicación web**: Ejecutar como **Yo**, acceso **Cualquier persona**. Copia la URL `/exec`.
+
+### Conectar a un cliente
+1. Instala el backend del cliente **en tu cuenta de Google** (o ajústalo tú) y en `Config.gs` pon `LICENCIA_URL` (URL del paso 4) y `LICENCIA_ID` (la clave `LIC-...`).
+2. Implementar → Administrar implementaciones → editar → **Nueva versión**.
+3. No compartas ese Sheet/Apps Script con permiso de edición: quien puede editar puede quitar la verificación.
+
+### Cómo operas
+| Quieres | Haces |
 |---|---|
-| Plan | MENSUAL, ANUAL o lo que quieras |
-| Vencimiento | Fecha, ej. `13-11-2026`. **Vacío = no vence** |
-| Contacto_WhatsApp | Número con código de país, sin `+` ni espacios (ej. `56968005177`) |
+| Bloquear por vencimiento | Nada: al pasar la fecha de **Vencimiento** se bloquea sola |
+| Bloquear ya | **Activo = FALSE** |
+| Renovar | Cambia **Vencimiento** (se aplica en ≤5 min o al pulsar "Ya renové, reintentar") |
+| Sin vencimiento | Deja **Vencimiento** vacío |
 
-El Master ve en **Configuración → Mi suscripción** el plan, el vencimiento, los días que faltan y un botón
-**Contactar por WhatsApp** (abre `wa.me` con un mensaje listo). En **Inicio** le aparece un aviso cuando faltan 7 días o menos, o ya venció.
-Por ahora es informativo: no bloquea la app al vencer.
+Si tu servidor de licencias no responde, la app sigue funcionando hasta 72 h con el último estado válido. Si `LICENCIA_URL` queda vacío, no hay control.
+El Master del cliente ve en **Configuración → Mi suscripción** el plan y los días restantes; en **Inicio** aparece un aviso cuando faltan 7 días o menos.
 
 ## Perfiles incluidos
 | Rol | Puede |

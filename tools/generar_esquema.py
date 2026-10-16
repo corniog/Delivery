@@ -259,11 +259,6 @@ T["Auditoria"] = [
  ("Detalle","LongText","Detalle del cambio","Producto creado"),
 ]
 
-T["Suscripcion"] = [
- ("Campo","Text (KEY)","Nombre del dato: Plan, Vencimiento o Contacto_WhatsApp","Plan"),
- ("Valor","Text","Plan: lo que quieras (MENSUAL, ANUAL...). Vencimiento: fecha (dd-mm-aaaa); si queda vacío NO vence. Contacto_WhatsApp: número con código de país, sin + ni espacios","MENSUAL"),
-]
-
 # seed rows
 modules = ["Inventario","Categorias","Ventas","Clientes","Proveedores","Delivery","Historial","Conocimiento","Reportes","KPI","Usuarios","Configuracion"]
 roles = [("R01","Master","Acceso total"),("R02","Ventas","Vende, consulta inventario, asigna delivery"),("R03","Delivery","Solo ve y gestiona sus servicios")]
@@ -296,8 +291,6 @@ seed["Configuracion"] = [
  ["ALERTA_STOCK_ACTIVA","TRUE","Activa las alertas de stock mínimo"],
  ["LOGO","","URL del logo (se sube desde Configuración)"],
 ]
-
-seed["Suscripcion"] = [["Plan",""],["Vencimiento",""],["Contacto_WhatsApp","56968005177"]]
 
 wb = Workbook()
 ws0 = wb.active; ws0.title = "LEEME"

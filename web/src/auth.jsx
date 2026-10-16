@@ -5,7 +5,7 @@ const Ctx = createContext(null);
 export const useAuth = () => useContext(Ctx);
 
 export function AuthProvider({ children }) {
-  const [state, setState] = useState({ ready: false, user: null, perms: {}, config: {}, brand: { NOMBRE_NEGOCIO: 'Mi Negocio', LOGO: '' } });
+  const [state, setState] = useState({ ready: false, user: null, perms: {}, config: {}, licencia: null, brand: { NOMBRE_NEGOCIO: 'Mi Negocio', LOGO: '' } });
 
   const applyMe = useCallback((me) => {
     setState({ ready: true, user: me.user, perms: me.perms, config: me.config, brand: { NOMBRE_NEGOCIO: me.config.NOMBRE_NEGOCIO || 'Mi Negocio', LOGO: me.config.LOGO || '' } });
@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
   const loadPublic = useCallback(async () => {
     try {
       const b = await call('publico');
-      setState((s) => ({ ...s, ready: true, user: null, brand: b }));
+      setState((s) => ({ ...s, ready: true, user: null, brand: { NOMBRE_NEGOCIO: b.NOMBRE_NEGOCIO, LOGO: b.LOGO }, licencia: b.licencia && b.licencia.bloqueada ? b.licencia : null }));
     } catch { setState((s) => ({ ...s, ready: true, user: null })); }
   }, []);
 
@@ -26,8 +26,10 @@ export function AuthProvider({ children }) {
       loadPublic();
     })();
     const onExpire = () => loadPublic();
+    const onBlock = (e) => setState((s) => ({ ...s, ready: true, licencia: e.detail || { bloqueada: true, mensaje: 'Servicio bloqueado.' } }));
     window.addEventListener('auth-expired', onExpire);
-    return () => window.removeEventListener('auth-expired', onExpire);
+    window.addEventListener('license-blocked', onBlock);
+    return () => { window.removeEventListener('auth-expired', onExpire); window.removeEventListener('license-blocked', onBlock); };
   }, [applyMe, loadPublic]);
 
   // Marca: título, favicon y color en toda la app
@@ -52,8 +54,17 @@ export function AuthProvider({ children }) {
     await loadPublic();
   };
   const refresh = async () => applyMe(await call('me'));
+  // Botón "Reintentar" de la pantalla de bloqueo: vuelve a consultar la licencia
+  const recheck = async () => {
+    const b = await call('publico', { refrescar: true });
+    if (b.licencia && b.licencia.bloqueada) { setState((s) => ({ ...s, licencia: b.licencia })); return false; }
+    setState((s) => ({ ...s, licencia: null }));
+    if (getToken()) { try { applyMe(await call('me')); return true; } catch { /* pide login */ } }
+    await loadPublic();
+    return true;
+  };
   const can = (mod, act = 'Ver') => !!(state.perms[mod] && state.perms[mod][act]);
   const isDelivery = !!(state.user && state.user.ID_Delivery);
 
-  return <Ctx.Provider value={{ ...state, login, logout, refresh, can, isDelivery }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ...state, login, logout, refresh, recheck, can, isDelivery }}>{children}</Ctx.Provider>;
 }

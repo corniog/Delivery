@@ -35,7 +35,7 @@ function WhatsAppBtn({ sub, label = 'Contactar por WhatsApp' }) {
 // Tarjeta en Configuración (solo Master)
 export function SubscriptionCard() {
   const sub = useSubscription();
-  if (!sub) return null;
+  if (!sub || sub.estado === 'sin_control') return null;
   return (
     <div className="card stack">
       <h2>Mi suscripción</h2>

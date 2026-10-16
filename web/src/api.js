@@ -33,6 +33,7 @@ export async function call(accion, datos = {}) {
   let json;
   try { json = await res.json(); } catch { throw new Error('Respuesta inválida del servidor. Revisa la URL de la implementación.'); }
   if (!json.ok) {
+    if (json.code === 'LICENSE') window.dispatchEvent(new CustomEvent('license-blocked', { detail: json.licencia }));
     if (json.code === 'AUTH') { setToken(null); window.dispatchEvent(new Event('auth-expired')); }
     throw new Error(json.error || 'Error desconocido');
   }

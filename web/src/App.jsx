@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './auth.jsx';
 import { ToastProvider, Icon, Brand, Modal } from './ui.jsx';
 import { getApiUrl, setApiUrl } from './api.js';
 import Login from './Login.jsx';
+import Blocked from './Blocked.jsx';
 import Sell from './pages/Sell.jsx';
 import { Productos, Categorias, Clientes, Proveedores, Conocimiento } from './pages/Simple.jsx';
 import Delivery from './pages/Delivery.jsx';
@@ -76,7 +77,8 @@ function Shell() {
 const Guard = ({ ok, children }) => (ok ? children : <div className="card">No tienes permiso para ver esta sección.</div>);
 
 function Gate() {
-  const { ready, user } = useAuth();
+  const { ready, user, licencia } = useAuth();
+  if (licencia && licencia.bloqueada) return <Blocked />;
   if (!ready) return <div className="login"><p className="muted">Cargando…</p></div>;
   return user ? <Shell /> : <Login />;
 }

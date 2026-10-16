@@ -18,7 +18,7 @@ function doPost(e) {
   try {
     return json_({ ok: true, data: route_(req) });
   } catch (err) {
-    return json_({ ok: false, error: err.message || String(err), code: err.code || '' });
+    return json_({ ok: false, error: err.message || String(err), code: err.code || '', licencia: err.data || null });
   }
 }
 
@@ -36,7 +36,10 @@ function fail_(msg, code) {
 function route_(req) {
   const a = req.accion;
   const d = req.datos || {};
-  if (a === 'publico') return publico_();
+  if (a === 'publico') return publico_(d);
+  // Control de suscripción: si está vencida/suspendida, NADA funciona (ni el login)
+  const lic = licencia_();
+  if (lic.bloqueada) { const e = new Error(lic.mensaje); e.code = 'LICENSE'; e.data = licenciaPublica_(lic); throw e; }
   if (a === 'login') return login_(d);
   const ctx = authenticate_(req.token);
   const fn = ACTIONS[a];
@@ -204,9 +207,10 @@ function hash_(password, salt) {
   return h;
 }
 
-function publico_() {
+function publico_(d) {
   const c = config_();
-  return { NOMBRE_NEGOCIO: c.NOMBRE_NEGOCIO || 'Mi Negocio', LOGO: c.LOGO || '' };
+  if (d && d.refrescar) licenciaRefrescar_();
+  return { NOMBRE_NEGOCIO: c.NOMBRE_NEGOCIO || 'Mi Negocio', LOGO: c.LOGO || '', licencia: licenciaPublica_(licencia_()) };
 }
 
 function login_(d) {
@@ -953,32 +957,95 @@ function exportar_(ctx, d) {
   return out;
 }
 
-// ---------- Suscripción (plan, vencimiento y contacto) ----------
-// Se lee de la hoja "Suscripcion": filas Plan, Vencimiento, Contacto_WhatsApp. Si Vencimiento está vacío, no vence.
+// ---------- Suscripción / licencia (se consulta al servidor de licencias del proveedor) ----------
 function parseFecha_(v) {
   if (v === '' || v === null || v === undefined) return null;
   const t = String(v).trim();
-  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);            // 2026-11-13 o 2026-11-13T00:00:00
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return { y: +m[1], m: +m[2], d: +m[3] };
-  m = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);  // 13-11-2026, 13/11/2026
+  m = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);
   if (m) return { y: +m[3], m: +m[2], d: +m[1] };
-  return undefined;                                         // escrito pero no se entiende
+  return undefined;
+}
+
+function licenciaRefrescar_() {
+  const cache = CacheService.getScriptCache();
+  if (cache.get('lic_force')) return;          // máximo 1 refresco cada 30 s
+  cache.put('lic_force', '1', 30);
+  cache.remove('lic_v1');
+}
+
+function licenciaRemota_() {
+  const cache = CacheService.getScriptCache();
+  const c = cache.get('lic_v1');
+  if (c) return JSON.parse(c);
+  const props = PropertiesService.getScriptProperties();
+  const sep = LICENCIA_URL.indexOf('?') >= 0 ? '&' : '?';
+  let j = null, falla = '';
+  try {
+    const res = UrlFetchApp.fetch(LICENCIA_URL + sep + 'k=' + encodeURIComponent(LICENCIA_ID), { muteHttpExceptions: true, followRedirects: true });
+    j = JSON.parse(res.getContentText());
+  } catch (e) { falla = String(e.message || e); }
+  if (j && j.ok) {
+    j.verificado = Date.now();
+    props.setProperty('lic_last', JSON.stringify(j));
+    cache.put('lic_v1', JSON.stringify(j), 300);
+    return j;
+  }
+  const last = props.getProperty('lic_last');
+  const prev = last ? JSON.parse(last) : null;
+  if (j && !j.ok) {                              // el servidor respondió que NO (clave inexistente, etc.): bloquear ya
+    const r = { error: j.error || 'Licencia no válida', invalida: true, whatsapp: prev ? prev.whatsapp : '', plan: prev ? prev.plan : '' };
+    cache.put('lic_v1', JSON.stringify(r), 60);
+    return r;
+  }
+  if (prev && Date.now() - prev.verificado < 72 * 3600 * 1000) {   // sin internet/servidor caído: gracia de 72 h con el último dato bueno
+    prev.sinConexion = true;
+    cache.put('lic_v1', JSON.stringify(prev), 60);
+    return prev;
+  }
+  return { error: falla || 'Sin respuesta del servidor de licencias', whatsapp: prev ? prev.whatsapp : '', plan: prev ? prev.plan : '' };
+}
+
+// Devuelve el estado de la licencia: activo | por_vencer | vencido | suspendido | sin_vencimiento | error | sin_control
+function licencia_() {
+  const base = { plan: '', vencimiento: '', diasRestantes: null, whatsapp: '', bloqueada: false, estado: 'sin_control', mensaje: '' };
+  if (!LICENCIA_URL) return base;
+  const r = licenciaRemota_();
+  base.plan = r.plan || '';
+  base.whatsapp = String(r.whatsapp || '').replace(/\D/g, '');
+  if (r.error) {
+    base.estado = 'error'; base.bloqueada = true;
+    base.mensaje = r.invalida ? 'La licencia de este sistema no es válida. Contacta a tu proveedor.' : 'No se pudo verificar la licencia. Intenta de nuevo en unos minutos.';
+    return base;
+  }
+  if (r.activo === false) {
+    base.estado = 'suspendido'; base.bloqueada = true;
+    base.mensaje = 'El servicio está suspendido. Contacta a tu proveedor para reactivarlo.';
+    return base;
+  }
+  const f = parseFecha_(r.vencimiento);
+  if (f === null) { base.estado = 'sin_vencimiento'; return base; }
+  if (f === undefined) { base.estado = 'error'; base.bloqueada = true; base.mensaje = 'La fecha de vencimiento de la licencia no es válida. Contacta a tu proveedor.'; return base; }
+  const hoy = fmtD_(new Date()).split('-');
+  const dias = Math.round((Date.UTC(f.y, f.m - 1, f.d) - Date.UTC(+hoy[0], +hoy[1] - 1, +hoy[2])) / 86400000);
+  base.vencimiento = f.y + '-' + pad_(f.m, 2) + '-' + pad_(f.d, 2);
+  base.diasRestantes = dias;
+  if (dias < 0) {
+    base.estado = 'vencido'; base.bloqueada = true;
+    base.mensaje = 'Tu suscripción venció el ' + pad_(f.d, 2) + '-' + pad_(f.m, 2) + '-' + f.y + '. Contacta a tu proveedor para renovarla.';
+  } else base.estado = dias <= 7 ? 'por_vencer' : 'activo';
+  return base;
+}
+
+// Lo único que se muestra sin iniciar sesión (solo si está bloqueada)
+function licenciaPublica_(l) {
+  if (!l.bloqueada) return { bloqueada: false };
+  return { bloqueada: true, estado: l.estado, mensaje: l.mensaje, plan: l.plan, vencimiento: l.vencimiento, whatsapp: l.whatsapp };
 }
 
 function suscripcion_(ctx, d) {
   if (!isMaster_(ctx)) fail_('Solo el Master puede ver la suscripción', 'PERM');
-  const o = {};
-  readAll_('Suscripcion').forEach(function (r) { o[String(r.Campo).trim()] = r.Valor; });
-  const plan = String(o.Plan === undefined ? '' : o.Plan).trim();
-  const wa = String(o.Contacto_WhatsApp === undefined ? '' : o.Contacto_WhatsApp).replace(/\D/g, '');
-  const f = parseFecha_(o.Vencimiento);
-  const out = { plan: plan, whatsapp: wa, vencimiento: '', diasRestantes: null, estado: 'sin_vencimiento' };
-  if (f === undefined) { out.estado = 'fecha_invalida'; return out; }
-  if (f === null) return out;
-  const hoy = fmtD_(new Date()).split('-');
-  const dias = Math.round((Date.UTC(f.y, f.m - 1, f.d) - Date.UTC(+hoy[0], +hoy[1] - 1, +hoy[2])) / 86400000);
-  out.vencimiento = f.y + '-' + pad_(f.m, 2) + '-' + pad_(f.d, 2);
-  out.diasRestantes = dias;
-  out.estado = dias < 0 ? 'vencido' : dias <= 7 ? 'por_vencer' : 'activo';
-  return out;
+  const l = licencia_();
+  return { plan: l.plan, whatsapp: l.whatsapp, vencimiento: l.vencimiento, diasRestantes: l.diasRestantes, estado: l.estado };
 }

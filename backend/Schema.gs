@@ -243,10 +243,6 @@ const SCHEMA = {
   "Accion",
   "Registro",
   "Detalle"
- ],
- "Suscripcion": [
-  "Campo",
-  "Valor"
  ]
 };
 
@@ -719,20 +715,6 @@ const SEED = {
    "LOGO",
    "",
    "URL del logo (se sube desde Configuración)"
-  ]
- ],
- "Suscripcion": [
-  [
-   "Plan",
-   ""
-  ],
-  [
-   "Vencimiento",
-   ""
-  ],
-  [
-   "Contacto_WhatsApp",
-   "56968005177"
   ]
  ]
 };
