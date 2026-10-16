@@ -97,10 +97,10 @@ Menú **Compras** → **Nueva compra**: elige proveedor, agrega productos (busca
 
 ## App Android (APK)
 La APK se genera sola en GitHub (gratis), a partir de la misma web:
-1. En tu repo: pestaña **Actions** → **Crear APK** → **Run workflow** (tarda ~5-8 min).
+1. En tu repo: pestaña **Actions** → **Crear APK** → **Run workflow**. Completa **nombre** (el que se ve bajo el ícono), **URL del Apps Script de ese negocio** y un **ID único** (ej. `cl.minegocio.delivery`). Tarda ~5-8 min.
 2. Al terminar, en **Releases** (columna derecha del repo) aparece **App Android (APK)** con el archivo `app-negocio.apk`.
 3. Desde el celular abre esa página de Releases, descarga el APK e instálalo (Android pedirá permitir "instalar apps de orígenes desconocidos").
-4. La APK usa la URL de `web/public/config.json` (tu servidor Apps Script). Si cambias esa URL, vuelve a ejecutar **Crear APK**.
+4. Cada APK queda atada al servidor (Apps Script) que escribiste: muestra el logo y datos de **ese** negocio. Para otro cliente, genera otra APK con su URL, nombre e ID. No publiques en Play Store una APK con tu URL si es para otros negocios.
 - Es una APK de prueba/uso directo (firmada con clave de depuración). Para subirla a Google Play (pago único de USD 25) hay que firmarla con una clave propia: se puede agregar después.
 - Cada vez que se actualiza la web, la APK no se actualiza sola: vuelve a ejecutar el workflow para sacar una versión nueva (el número de versión sube solo).
 

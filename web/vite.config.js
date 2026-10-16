@@ -9,8 +9,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'App Negocio',
-        short_name: 'Negocio',
+        name: process.env.VITE_APP_NAME || 'App Negocio',
+        short_name: (process.env.VITE_APP_NAME || 'Negocio').slice(0, 12),
         description: 'Inventario, ventas y delivery',
         theme_color: '#4f46e5',
         background_color: '#f6f7fb',

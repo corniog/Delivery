@@ -3,6 +3,16 @@
 name: Crear APK
 on:
   workflow_dispatch:
+    inputs:
+      nombre_app:
+        description: 'Nombre que se verá bajo el ícono (ej: Mi Delivery)'
+        default: 'App Negocio'
+      url_api:
+        description: 'URL /exec del Apps Script de ESTE negocio (vacío = la de web/public/config.json)'
+        default: ''
+      id_app:
+        description: 'ID único de la app, minúsculas y puntos (ej: cl.minegocio.delivery). No lo cambies después.'
+        default: 'cl.corniog.negocio'
 permissions:
   contents: write
 jobs:
@@ -19,6 +29,27 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Personalizar (nombre, ID y servidor de este negocio)
+        working-directory: web
+        env:
+          NOMBRE: ${{ inputs.nombre_app }}
+          URL: ${{ inputs.url_api }}
+          IDAPP: ${{ inputs.id_app }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          nombre = os.environ.get('NOMBRE', '').strip() or 'App Negocio'
+          idapp = os.environ.get('IDAPP', '').strip() or 'cl.corniog.negocio'
+          if not re.fullmatch(r'[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+', idapp):
+              raise SystemExit('ID de app inválido: ' + idapp)
+          c = json.load(open('capacitor.config.json'))
+          c['appName'] = nombre; c['appId'] = idapp
+          json.dump(c, open('capacitor.config.json', 'w'), ensure_ascii=False, indent=2)
+          url = os.environ.get('URL', '').strip()
+          if url:
+              json.dump({'API_URL': url}, open('public/config.json', 'w'), indent=2)
+          open(os.environ['GITHUB_ENV'], 'a').write('VITE_APP_NAME=' + nombre + '\n')
+          PY
       - name: Compilar la web
         working-directory: web
         run: |
