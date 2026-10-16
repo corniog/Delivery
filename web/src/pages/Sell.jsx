@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
-import { Modal, Icon, Scanner, useToast, useFmt } from '../ui.jsx';
+import { Modal, Icon, Scanner, useToast, useFmt, imprimir } from '../ui.jsx';
 import Ticket from '../Ticket.jsx';
 
 export default function Sell() {
@@ -116,7 +116,7 @@ export default function Sell() {
           <Ticket data={done} />
           <div className="row no-print" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
             <button className="btn" onClick={() => setDone(null)}>Cerrar</button>
-            <button className="btn primary" onClick={() => window.print()}>Imprimir</button>
+            <button className="btn primary" onClick={() => imprimir('Venta ' + done.venta.ID_Venta).catch((e) => toast(e.message, true))}>Imprimir</button>
           </div>
         </Modal>)}
     </div>

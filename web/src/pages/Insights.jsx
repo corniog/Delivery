@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
-import { Icon, Modal, BarList, useFmt, useToast, fdt, today, daysAgo, Confirm } from '../ui.jsx';
+import { Icon, Modal, BarList, useFmt, useToast, fdt, today, daysAgo, Confirm, imprimir } from '../ui.jsx';
 import Ticket from '../Ticket.jsx';
 import { DeliveryHistory } from './Delivery.jsx';
 import { SubscriptionBanner } from '../Suscripcion.jsx';
@@ -113,7 +113,7 @@ function HistVentas() {
           <Ticket data={det} />
           <div className="row no-print" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
             {can('Ventas', 'Eliminar') && det.venta.Estado !== 'Anulada' && <button className="btn danger" onClick={() => setAnular(det.venta)}>Anular venta</button>}
-            <button className="btn primary" onClick={() => window.print()}>Imprimir</button>
+            <button className="btn primary" onClick={() => imprimir('Venta ' + det.venta.ID_Venta).catch((e) => toast(e.message, true))}>Imprimir</button>
           </div>
         </Modal>)}
       {anular && <Confirm yesText="Anular" text={`¿Anular la venta ${anular.ID_Venta}? Se devolverá el stock de los productos.`} onYes={doAnular} onNo={() => setAnular(null)} />}

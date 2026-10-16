@@ -101,6 +101,19 @@ jobs:
           open(p, 'w').write(s)
           PY
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
+      - name: Impresión nativa (el WebView de Android no imprime solo)
+        working-directory: web
+        run: |
+          python3 - <<'PY'
+          import json, os
+          appid = json.load(open('capacitor.config.json'))['appId']
+          d = os.path.join('android/app/src/main/java', *appid.split('.'))
+          os.makedirs(d, exist_ok=True)
+          for src, dst in (('NativePrintPlugin.java.txt', 'NativePrintPlugin.java'), ('MainActivity.java.txt', 'MainActivity.java')):
+              code = open('../tools/android/' + src).read().replace('__APPID__', appid)
+              open(os.path.join(d, dst), 'w').write(code)
+          print('Plugin de impresión instalado en', d)
+          PY
       - name: Íconos de la app
         run: |
           pip install pillow

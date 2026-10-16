@@ -81,6 +81,9 @@ venció o la suspendes, **toda la app se bloquea** y muestra un botón **Contact
 Si tu servidor de licencias no responde, la app sigue funcionando hasta 72 h con el último estado válido. Si `LICENCIA_URL` queda vacío, no hay control.
 El Master del cliente ve en **Configuración → Mi suscripción** el plan y los días restantes; en **Inicio** aparece un aviso cuando faltan 7 días o menos.
 
+## Imprimir en la APK
+El botón **Imprimir** abre el diálogo de impresión de Android (elige impresora o **Guardar como PDF**). Requiere una APK generada con la versión actual del flujo *Crear APK*. Las impresoras térmicas Bluetooth necesitan su propia app/driver o un plugin aparte (pendiente).
+
 ## Compras a proveedores
 Menú **Compras** → **Nueva compra**: elige proveedor, agrega productos (buscando o escaneando el código de barras), cantidad y costo.
 - **Ya la recibí**: suma el stock al tiro y deja el movimiento en el historial de inventario. Si la dejas **Pendiente**, el stock sube cuando pulses *Marcar como recibida*.

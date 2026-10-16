@@ -173,3 +173,13 @@ export const Brand = ({ size = 40 }) => {
     ? <img src={brand.LOGO} alt={brand.NOMBRE_NEGOCIO} onError={() => setBad(true)} style={{ width: size, height: size, objectFit: 'contain', borderRadius: 10, background: '#fff' }} />
     : <div className="logo-ph" style={{ width: size, height: size }}>{(brand.NOMBRE_NEGOCIO || 'N').slice(0, 1).toUpperCase()}</div>;
 };
+
+/* ---------- Imprimir (en la APK usa el diálogo nativo de Android) ---------- */
+export async function imprimir(nombre = 'Documento') {
+  const cap = window.Capacitor;
+  const native = cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform();
+  if (!native) { window.print(); return; }
+  const plugin = cap.Plugins && cap.Plugins.NativePrint;
+  if (!plugin) throw new Error('Esta versión de la APK no puede imprimir. Instala la APK más reciente.');
+  await plugin.print({ name: nombre });
+}

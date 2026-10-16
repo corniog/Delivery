@@ -1,0 +1,36 @@
+package __APPID__;
+
+import android.content.Context;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
+import android.webkit.WebView;
+
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+// Imprime la pantalla actual con el diálogo de impresión de Android (impresoras, "Guardar como PDF", etc.)
+// El WebView de Android ignora window.print(); esto lo reemplaza.
+@CapacitorPlugin(name = "NativePrint")
+public class NativePrintPlugin extends Plugin {
+    @PluginMethod
+    public void print(final PluginCall call) {
+        final String name = call.getString("name", "Documento");
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    WebView wv = getBridge().getWebView();
+                    PrintManager pm = (PrintManager) getActivity().getSystemService(Context.PRINT_SERVICE);
+                    PrintDocumentAdapter adapter = wv.createPrintDocumentAdapter(name);
+                    pm.print(name, adapter, new PrintAttributes.Builder().build());
+                    call.resolve();
+                } catch (Exception e) {
+                    call.reject(String.valueOf(e.getMessage()));
+                }
+            }
+        });
+    }
+}
