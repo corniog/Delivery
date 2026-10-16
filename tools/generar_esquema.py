@@ -88,7 +88,7 @@ T["Movimientos_Inventario"] = [
  ("ID_Mov","Text (KEY)","Identificador","M00001"),
  ("Fecha","DateTime","Automático",now),
  ("ID_Producto","Ref → Productos","Producto afectado","P0001"),
- ("Tipo","Enum: Entrada compra|Salida venta|Ajuste|Merma|Anulacion venta","Motivo del movimiento","Salida venta"),
+ ("Tipo","Enum: Entrada compra|Salida venta|Ajuste|Merma|Anulacion venta|Anulacion compra","Motivo del movimiento","Salida venta"),
  ("Cantidad","Decimal","Positiva siempre; el Tipo define si suma o resta","2"),
  ("Stock_Antes","Decimal","Stock antes del movimiento","50"),
  ("Stock_Despues","Decimal","Stock luego del movimiento","48"),
@@ -135,6 +135,7 @@ T["Compras"] = [
  ("Total","Price","Suma de Detalle_Compra (virtual column en AppSheet)","43200"),
  ("Estado","Enum: Pendiente|Recibida|Anulada","Al pasar a Recibida suma stock","Recibida"),
  ("Usuario","Email","Quién registró","master@minegocio.com"),
+ ("Nota","Text","Observación (N° de factura del proveedor, etc.)",""),
 ]
 T["Detalle_Compra"] = [
  ("ID_DetCompra","Text (KEY)","Identificador","DC0001"),

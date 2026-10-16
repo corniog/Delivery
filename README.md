@@ -81,6 +81,29 @@ venció o la suspendes, **toda la app se bloquea** y muestra un botón **Contact
 Si tu servidor de licencias no responde, la app sigue funcionando hasta 72 h con el último estado válido. Si `LICENCIA_URL` queda vacío, no hay control.
 El Master del cliente ve en **Configuración → Mi suscripción** el plan y los días restantes; en **Inicio** aparece un aviso cuando faltan 7 días o menos.
 
+## Compras a proveedores
+Menú **Compras** → **Nueva compra**: elige proveedor, agrega productos (buscando o escaneando el código de barras), cantidad y costo.
+- **Ya la recibí**: suma el stock al tiro y deja el movimiento en el historial de inventario. Si la dejas **Pendiente**, el stock sube cuando pulses *Marcar como recibida*.
+- Puede actualizar el **costo de compra** del producto con el costo de esa factura.
+- **Anular** una compra recibida devuelve el stock, salvo que ya hayas vendido parte (en ese caso te avisa).
+- Permisos: usa los del módulo **Proveedores** (Ver = ver compras, Crear = registrar, Editar = recibir, Eliminar = anular).
+
+## Mapa en vivo
+- **Repartidor:** al **Aceptar** un pedido se activa "Ubicación en vivo" (pide permiso de GPS). Envía su posición cada ~20 s mientras la app está abierta
+  (la pantalla se mantiene encendida). Puede detenerla cuando quiera.
+- **Administración:** Delivery → **Mapa en vivo**: ve a cada repartidor, su ruta del día, los destinos de sus pedidos y hace cuánto reportó. Se actualiza cada 15 s.
+- Para que el destino aparezca en el mapa el cliente debe tener **Ubicación** (lat,long) guardada; el local usa `ORIGEN_LATLONG` de Configuración.
+- Mapas: OpenStreetMap + Leaflet (gratis). Límite: una app web/APK no puede seguir al repartidor con la pantalla apagada; para eso haría falta una app nativa con servicio en segundo plano.
+
+## App Android (APK)
+La APK se genera sola en GitHub (gratis), a partir de la misma web:
+1. En tu repo: pestaña **Actions** → **Crear APK** → **Run workflow** (tarda ~5-8 min).
+2. Al terminar, en **Releases** (columna derecha del repo) aparece **App Android (APK)** con el archivo `app-negocio.apk`.
+3. Desde el celular abre esa página de Releases, descarga el APK e instálalo (Android pedirá permitir "instalar apps de orígenes desconocidos").
+4. La APK usa la URL de `web/public/config.json` (tu servidor Apps Script). Si cambias esa URL, vuelve a ejecutar **Crear APK**.
+- Es una APK de prueba/uso directo (firmada con clave de depuración). Para subirla a Google Play (pago único de USD 25) hay que firmarla con una clave propia: se puede agregar después.
+- Cada vez que se actualiza la web, la APK no se actualiza sola: vuelve a ejecutar el workflow para sacar una versión nueva (el número de versión sube solo).
+
 ## Perfiles incluidos
 | Rol | Puede |
 |---|---|

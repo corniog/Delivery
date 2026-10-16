@@ -72,6 +72,12 @@ const ACTIONS = {
   usuariosPassword: usuariosPassword_,
   permisosGuardar: permisosGuardar_,
   exportar: exportar_,
+  crearCompra: crearCompra_,
+  recibirCompra: recibirCompra_,
+  anularCompra: anularCompra_,
+  listarCompras: listarCompras_,
+  ubicacion: ubicacion_,
+  mapaVivo: mapaVivo_,
   suscripcion: suscripcion_
 };
 
@@ -83,8 +89,6 @@ const TABLES = {
   Clientes: { key: 'ID_Cliente', prefix: 'CL', module: 'Clientes' },
   Proveedores: { key: 'ID_Proveedor', prefix: 'PR', module: 'Proveedores' },
   Visitas_Proveedor: { key: 'ID_Visita', prefix: 'VP', module: 'Proveedores' },
-  Compras: { key: 'ID_Compra', prefix: 'CO', module: 'Proveedores' },
-  Detalle_Compra: { key: 'ID_DetCompra', prefix: 'DC', module: 'Proveedores' },
   Deliverys: { key: 'ID_Delivery', prefix: 'D', module: 'Delivery' },
   Categorias_Conocimiento: { key: 'ID_CatCon', prefix: 'CK', module: 'Conocimiento' },
   Conocimiento: { key: 'ID_Conocimiento', prefix: 'K', module: 'Conocimiento' },
@@ -94,7 +98,7 @@ const TABLES = {
 };
 // Tablas de solo lectura (se escriben con acciones propias)
 const READ_ONLY = {
-  Ventas: 'Ventas', Detalle_Venta: 'Ventas', Documentos: 'Ventas',
+  Ventas: 'Ventas', Detalle_Venta: 'Ventas', Documentos: 'Ventas', Compras: 'Proveedores', Detalle_Compra: 'Proveedores',
   Movimientos_Inventario: 'Inventario', Servicios_Delivery: 'Delivery',
   Ubicaciones_Delivery: 'Delivery', Auditoria: 'Configuracion', Configuracion: null
 };
@@ -504,6 +508,206 @@ function marcarAlertas_(ctx, d) {
     if (mine && (d.todas || ids.indexOf(a.ID_Alerta) >= 0) && !bool_(a.Leida)) update_('Alertas', a._row, { Leida: true });
   });
   return true;
+}
+
+// ---------- Compras a proveedores ----------
+function entradaCompra_(ctx, compra, detalles, actualizarCosto) {
+  const productos = {};
+  readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
+  const fh = fmtDT_(new Date());
+  detalles.forEach(function (r) {
+    const p = productos[r.ID_Producto];
+    if (!p) return;
+    const antes = num_(p.Stock_Actual);
+    const despues = antes + num_(r.Cantidad);
+    const patch = { Stock_Actual: despues };
+    if (actualizarCosto && num_(r.Costo_Unitario) > 0) patch.Precio_Compra = num_(r.Costo_Unitario);
+    update_('Productos', p._row, patch);
+    p.Stock_Actual = despues;
+    insert_('Movimientos_Inventario', {
+      ID_Mov: newId_('M'), Fecha: fh, ID_Producto: p.ID_Producto, Tipo: 'Entrada compra', Cantidad: num_(r.Cantidad),
+      Stock_Antes: antes, Stock_Despues: despues, Referencia: compra.ID_Compra, Usuario: ctx.user.Email, Nota: ''
+    });
+  });
+}
+
+function crearCompra_(ctx, d) {
+  need_(ctx, 'Proveedores', 'Crear');
+  const prov = findBy_('Proveedores', 'ID_Proveedor', d.ID_Proveedor);
+  if (!prov) fail_('Elige un proveedor');
+  const itemsIn = d.items || [];
+  if (!itemsIn.length) fail_('Agrega al menos un producto');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const productos = {};
+    readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
+    const idc = newId_('CO');
+    let total = 0;
+    const detalles = itemsIn.map(function (it) {
+      const p = productos[it.ID_Producto];
+      if (!p) fail_('Producto no encontrado: ' + it.ID_Producto);
+      const cant = num_(it.Cantidad), costo = num_(it.Costo_Unitario);
+      if (!(cant > 0)) fail_('Cantidad inválida para ' + p.Nombre);
+      if (costo < 0) fail_('Costo inválido para ' + p.Nombre);
+      const sub = round2_(cant * costo);
+      total += sub;
+      return { ID_DetCompra: newId_('DC'), ID_Compra: idc, ID_Producto: p.ID_Producto, Cantidad: cant, Costo_Unitario: costo, Subtotal: sub };
+    });
+    total = round2_(total);
+    const recibir = d.recibir !== false;
+    const compra = { ID_Compra: idc, Fecha: fmtDT_(new Date()), ID_Proveedor: prov.ID_Proveedor, Total: total,
+      Estado: recibir ? 'Recibida' : 'Pendiente', Usuario: ctx.user.Email, Nota: d.nota || '' };
+    insert_('Compras', compra);
+    detalles.forEach(function (r) { insert_('Detalle_Compra', r); });
+    if (recibir) entradaCompra_(ctx, compra, detalles, d.actualizarCosto !== false);
+    audit_(ctx, 'Proveedores', 'Crear', idc, 'Compra ' + compra.Estado + ' a ' + prov.Nombre + ' por ' + total);
+    return { ID_Compra: idc, Total: total, Estado: compra.Estado };
+  } finally { lock.releaseLock(); }
+}
+
+function recibirCompra_(ctx, d) {
+  need_(ctx, 'Proveedores', 'Editar');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const c = findBy_('Compras', 'ID_Compra', d.ID_Compra);
+    if (!c) fail_('Compra no encontrada');
+    if (c.Estado !== 'Pendiente') fail_('Solo se pueden recibir compras pendientes');
+    const det = readAll_('Detalle_Compra').filter(function (r) { return r.ID_Compra === c.ID_Compra; });
+    entradaCompra_(ctx, c, det, d.actualizarCosto !== false);
+    update_('Compras', c._row, { Estado: 'Recibida' });
+    audit_(ctx, 'Proveedores', 'Editar', c.ID_Compra, 'Compra recibida');
+    return true;
+  } finally { lock.releaseLock(); }
+}
+
+function anularCompra_(ctx, d) {
+  need_(ctx, 'Proveedores', 'Eliminar');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const c = findBy_('Compras', 'ID_Compra', d.ID_Compra);
+    if (!c) fail_('Compra no encontrada');
+    if (c.Estado === 'Anulada') fail_('La compra ya está anulada');
+    if (c.Estado === 'Recibida') {
+      const productos = {};
+      readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
+      const det = readAll_('Detalle_Compra').filter(function (r) { return r.ID_Compra === c.ID_Compra; });
+      det.forEach(function (r) {
+        const p = productos[r.ID_Producto];
+        if (p && num_(p.Stock_Actual) < num_(r.Cantidad)) fail_('No se puede anular: ya se vendió parte de "' + p.Nombre + '" (stock ' + p.Stock_Actual + ', compra ' + r.Cantidad + ')');
+      });
+      const fh = fmtDT_(new Date());
+      det.forEach(function (r) {
+        const p = productos[r.ID_Producto];
+        if (!p) return;
+        const antes = num_(p.Stock_Actual), despues = antes - num_(r.Cantidad);
+        update_('Productos', p._row, { Stock_Actual: despues });
+        p.Stock_Actual = despues;
+        insert_('Movimientos_Inventario', {
+          ID_Mov: newId_('M'), Fecha: fh, ID_Producto: p.ID_Producto, Tipo: 'Anulacion compra', Cantidad: num_(r.Cantidad),
+          Stock_Antes: antes, Stock_Despues: despues, Referencia: c.ID_Compra, Usuario: ctx.user.Email, Nota: d.motivo || ''
+        });
+        stockAlert_(p, despues);
+      });
+    }
+    update_('Compras', c._row, { Estado: 'Anulada' });
+    audit_(ctx, 'Proveedores', 'Eliminar', c.ID_Compra, 'Compra anulada. ' + (d.motivo || ''));
+    return true;
+  } finally { lock.releaseLock(); }
+}
+
+function listarCompras_(ctx, d) {
+  need_(ctx, 'Proveedores', 'Ver');
+  const desde = d.desde || '0000-00-00', hasta = d.hasta || '9999-99-99';
+  const provs = {}; readAll_('Proveedores').forEach(function (x) { provs[x.ID_Proveedor] = x.Nombre; });
+  const prods = {}; readAll_('Productos').forEach(function (x) { prods[x.ID_Producto] = x.Nombre; });
+  const det = {};
+  readAll_('Detalle_Compra').forEach(function (r) {
+    (det[r.ID_Compra] = det[r.ID_Compra] || []).push({ ID_Producto: r.ID_Producto, Nombre: prods[r.ID_Producto] || r.ID_Producto,
+      Cantidad: num_(r.Cantidad), Costo_Unitario: num_(r.Costo_Unitario), Subtotal: num_(r.Subtotal) });
+  });
+  const rows = readAll_('Compras').filter(function (c) {
+    const f = String(c.Fecha).slice(0, 10);
+    return f >= desde && f <= hasta && (!d.estado || c.Estado === d.estado) && (!d.ID_Proveedor || c.ID_Proveedor === d.ID_Proveedor);
+  }).map(function (c) {
+    const o = cleanRow_('Compras', c);
+    o.Proveedor = provs[c.ID_Proveedor] || '';
+    o.items = det[c.ID_Compra] || [];
+    return o;
+  });
+  rows.sort(function (a, b) { return a.Fecha < b.Fecha ? 1 : -1; });
+  const validas = rows.filter(function (r) { return r.Estado !== 'Anulada'; });
+  return { rows: rows, total: round2_(validas.reduce(function (s, r) { return s + num_(r.Total); }, 0)), cantidad: validas.length };
+}
+
+// ---------- Mapa en vivo ----------
+function parseLL_(v) {
+  const m = String(v || '').split(',');
+  if (m.length !== 2) return null;
+  const a = parseFloat(m[0]), b = parseFloat(m[1]);
+  return isNaN(a) || isNaN(b) ? null : { lat: a, lng: b };
+}
+
+// El repartidor envía su posición (la app lo hace cada ~20 s mientras comparte)
+function ubicacion_(ctx, d) {
+  if (!isDelivery_(ctx)) fail_('Solo los repartidores comparten ubicación', 'PERM');
+  const lat = Number(d.lat), lng = Number(d.lng);
+  if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) fail_('Ubicación inválida');
+  const r = findBy_('Deliverys', 'ID_Delivery', ctx.user.ID_Delivery);
+  if (!r) fail_('Repartidor no encontrado');
+  const ll = lat.toFixed(6) + ',' + lng.toFixed(6);
+  const now = new Date();
+  update_('Deliverys', r._row, { Ultima_Ubicacion: ll, Fecha_Ubicacion: fmtDT_(now) });
+  // Rastro de la ruta: 1 punto por minuto, solo si hay un pedido en curso
+  const cache = CacheService.getScriptCache();
+  const key = 'trk_' + r.ID_Delivery;
+  if (!cache.get(key)) {
+    const act = readAll_('Servicios_Delivery').filter(function (s) {
+      return s.ID_Delivery === r.ID_Delivery && (s.Estado === 'Aceptado' || s.Estado === 'En camino');
+    })[0];
+    if (act) {
+      insert_('Ubicaciones_Delivery', { ID_Ubic: newId_('UB'), ID_Servicio: act.ID_Servicio, ID_Delivery: r.ID_Delivery, LatLong: ll, Fecha_Hora: fmtDT_(now) });
+      cache.put(key, '1', 60);
+    }
+  }
+  return true;
+}
+
+function mapaVivo_(ctx, d) {
+  need_(ctx, 'Delivery', 'Ver');
+  if (isDelivery_(ctx)) fail_('El mapa es solo para administración', 'PERM');
+  const cfg = config_();
+  const hoy = fmtD_(new Date());
+  const servicios = readAll_('Servicios_Delivery').filter(function (s) { return ['Asignado', 'Aceptado', 'En camino'].indexOf(s.Estado) >= 0; });
+  const ventas = {}; readAll_('Ventas').forEach(function (v) { ventas[v.ID_Venta] = v; });
+  const clientes = {}; readAll_('Clientes').forEach(function (c) { clientes[c.ID_Cliente] = c.Nombre; });
+  const rastro = {};
+  readAll_('Ubicaciones_Delivery').forEach(function (u) {
+    if (String(u.Fecha_Hora).slice(0, 10) !== hoy) return;
+    const p = parseLL_(u.LatLong);
+    if (p) (rastro[u.ID_Delivery] = rastro[u.ID_Delivery] || []).push([p.lat, p.lng]);
+  });
+  const now = new Date().getTime();
+  const reps = readAll_('Deliverys').filter(function (r) { return bool_(r.Activo); }).map(function (r) {
+    const pos = parseLL_(r.Ultima_Ubicacion);
+    let min = null;
+    if (r.Fecha_Ubicacion) { const t = new Date(String(r.Fecha_Ubicacion)).getTime(); if (!isNaN(t)) min = Math.max(0, Math.round((now - t) / 60000)); }
+    return {
+      ID_Delivery: r.ID_Delivery, Nombre: r.Nombre, Telefono: r.Telefono, Vehiculo: r.Vehiculo, Estado: r.Estado,
+      lat: pos ? pos.lat : null, lng: pos ? pos.lng : null, Fecha_Ubicacion: r.Fecha_Ubicacion, hace_min: min,
+      ruta: (rastro[r.ID_Delivery] || []).slice(-60),
+      servicios: servicios.filter(function (s) { return s.ID_Delivery === r.ID_Delivery; }).map(function (s) {
+        const dest = parseLL_(s.Destino_LatLong);
+        const v = ventas[s.ID_Venta];
+        return { ID_Servicio: s.ID_Servicio, ID_Venta: s.ID_Venta, Estado: s.Estado, Direccion_Entrega: s.Direccion_Entrega,
+          dest: dest ? [dest.lat, dest.lng] : null, Cliente: v ? (clientes[v.ID_Cliente] || '') : '' };
+      })
+    };
+  });
+  const o = parseLL_(cfg.ORIGEN_LATLONG);
+  return { origen: o ? [o.lat, o.lng] : null, repartidores: reps };
 }
 
 // ---------- Ventas ----------

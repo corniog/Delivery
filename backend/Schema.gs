@@ -120,7 +120,8 @@ const SCHEMA = {
   "ID_Proveedor",
   "Total",
   "Estado",
-  "Usuario"
+  "Usuario",
+  "Nota"
  ],
  "Detalle_Compra": [
   "ID_DetCompra",

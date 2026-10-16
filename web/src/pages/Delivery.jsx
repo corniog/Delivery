@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { call } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import Crud from '../Crud.jsx';
+import { MapaVivo, ShareLocation, startSharing } from './Mapa.jsx';
 import { Modal, useToast, useFmt, fdt, today, daysAgo, Icon } from '../ui.jsx';
 
 const estadoCls = { Asignado: 'warn', Aceptado: '', 'En camino': '', Finalizado: 'ok', Rechazado: 'bad', Cancelado: 'bad' };
@@ -16,8 +17,11 @@ export default function Delivery() {
       <div className="tabs">
         <button className={tab === 'servicios' ? 'on' : ''} onClick={() => setTab('servicios')}>{isDelivery ? 'Pendientes' : 'Servicios activos'}</button>
         {!isDelivery && can('Delivery', 'Ver') && <button className={tab === 'rep' ? 'on' : ''} onClick={() => setTab('rep')}>Repartidores</button>}
+        {!isDelivery && can('Delivery', 'Ver') && <button className={tab === 'mapa' ? 'on' : ''} onClick={() => setTab('mapa')}>Mapa en vivo</button>}
         <button className={tab === 'hist' ? 'on' : ''} onClick={() => setTab('hist')}>Historial</button>
       </div>
+      {isDelivery && <ShareLocation />}
+      {tab === 'mapa' && <MapaVivo />}
       {tab === 'servicios' && <Servicios />}
       {tab === 'rep' && <Repartidores />}
       {tab === 'hist' && <DeliveryHistory />}
@@ -37,7 +41,7 @@ function Servicios() {
   useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
 
   const set = async (s, estado, extra = {}) => {
-    try { await call('servicioEstado', { ID_Servicio: s.ID_Servicio, estado, ...extra }); toast('Actualizado'); load(); } catch (e) { toast(e.message, true); }
+    try { await call('servicioEstado', { ID_Servicio: s.ID_Servicio, estado, ...extra }); if (isDelivery && estado === 'Aceptado') startSharing(); toast('Actualizado'); load(); } catch (e) { toast(e.message, true); }
   };
   if (rows === null) return <p className="muted">Cargando…</p>;
   if (!rows.length) return <div className="card muted">No hay pedidos pendientes.</div>;

@@ -154,3 +154,12 @@ table.t{width:100%;border-collapse:collapse}
   .ticket{border:0;margin:0}
   .no-print{display:none!important}
 }
+
+/* Mapa en vivo */
+.livemap{height:min(62vh,560px);min-height:320px;border-radius:14px;border:1px solid var(--line);overflow:hidden;z-index:0}
+.mk{display:grid;place-items:center;border-radius:50%;color:#fff;font-weight:800;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.mk-rep{width:34px;height:34px;background:#16a34a}.mk-rep.busy{background:#4f46e5}.mk-rep.old{background:#9ca3af}
+.mk-store{width:30px;height:30px;background:#111827;font-size:16px}
+.mk-dest{width:18px;height:18px;background:#f59e0b;font-size:8px;border-width:2px}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#16a34a;margin-right:4px;vertical-align:middle;flex:none}
+.dot.busy{background:#4f46e5}.dot.old{background:#9ca3af}.dot.off{background:transparent;border:2px solid #9ca3af}

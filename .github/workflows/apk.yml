@@ -1,0 +1,69 @@
+# Genera la app Android (APK) a partir de la web y la publica en "Releases" (gratis).
+# Ejecútalo a mano: pestaña Actions > "Crear APK" > Run workflow.
+name: Crear APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Compilar la web
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+      - name: Crear proyecto Android
+        working-directory: web
+        run: |
+          npx cap add android
+          # Permisos: ubicación (mapa en vivo) y cámara (escáner de códigos de barras)
+          python3 - <<'PY'
+          p = 'android/app/src/main/AndroidManifest.xml'
+          s = open(p).read()
+          extra = ('    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n'
+                   '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n'
+                   '    <uses-permission android:name="android.permission.CAMERA" />\n'
+                   '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
+                   '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n')
+          s = s.replace('</manifest>', extra + '</manifest>')
+          open(p, 'w').write(s)
+          PY
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
+      - name: Íconos de la app
+        run: |
+          pip install pillow
+          python3 tools/android_icons.py web/android/app/src/main/res
+      - name: Compilar APK
+        working-directory: web
+        run: |
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Guardar el APK
+        run: cp web/android/app/build/outputs/apk/debug/app-debug.apk app-negocio.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-negocio-apk
+          path: app-negocio.apk
+      - name: Publicar en Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-latest --cleanup-tag -y || true
+          gh release create apk-latest app-negocio.apk --title "App Android (APK)" \
+            --notes "Descarga **app-negocio.apk** desde tu celular e instálalo (permite 'instalar apps desconocidas'). Versión ${{ github.run_number }}."

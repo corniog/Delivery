@@ -1,0 +1,7 @@
+{
+  "appId": "cl.corniog.negocio",
+  "appName": "App Negocio",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}

@@ -5,6 +5,7 @@ import { ToastProvider, Icon, Brand, Modal } from './ui.jsx';
 import { getApiUrl, setApiUrl } from './api.js';
 import Login from './Login.jsx';
 import Blocked from './Blocked.jsx';
+import Compras from './pages/Compras.jsx';
 import Sell from './pages/Sell.jsx';
 import { Productos, Categorias, Clientes, Proveedores, Conocimiento } from './pages/Simple.jsx';
 import Delivery from './pages/Delivery.jsx';
@@ -18,6 +19,7 @@ const NAV = [
   { to: '/categorias', label: 'Categorías', icon: 'tag', show: (c) => c('Categorias', 'Ver') },
   { to: '/clientes', label: 'Clientes', icon: 'users', show: (c) => c('Clientes', 'Ver') },
   { to: '/proveedores', label: 'Proveedores', icon: 'store', show: (c) => c('Proveedores', 'Ver') },
+  { to: '/compras', label: 'Compras', icon: 'bag', show: (c, d) => c('Proveedores', 'Ver') && !d },
   { to: '/delivery', label: 'Delivery', icon: 'truck', show: (c) => c('Delivery', 'Ver') },
   { to: '/historial', label: 'Historial', icon: 'clock', show: (c, d) => c('Historial', 'Ver') && !d },
   { to: '/conocimiento', label: 'Conocimiento', icon: 'book', show: (c) => c('Conocimiento', 'Ver') },
@@ -51,6 +53,7 @@ function Shell() {
           <Route path="/categorias" element={<Guard ok={can('Categorias', 'Ver')}><Categorias /></Guard>} />
           <Route path="/clientes" element={<Guard ok={can('Clientes', 'Ver')}><Clientes /></Guard>} />
           <Route path="/proveedores" element={<Guard ok={can('Proveedores', 'Ver')}><Proveedores /></Guard>} />
+          <Route path="/compras" element={<Guard ok={can('Proveedores', 'Ver') && !isDelivery}><Compras /></Guard>} />
           <Route path="/delivery" element={<Guard ok={can('Delivery', 'Ver')}><Delivery /></Guard>} />
           <Route path="/historial" element={<Guard ok={can('Historial', 'Ver') && !isDelivery}><Historial /></Guard>} />
           <Route path="/conocimiento" element={<Guard ok={can('Conocimiento', 'Ver')}><Conocimiento /></Guard>} />

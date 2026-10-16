@@ -99,6 +99,65 @@ assert.deepStrictEqual(Object.keys(ok(rt.call('exportar', { hojas: ['Usuarios', 
 // cambio de contraseña
 ok(rt.call('cambiarPassword', { actual: 'Ventas1234', nueva: 'NuevaClave99' }, V));
 ok(rt.call('login', { email: 'ventas@test.com', password: 'NuevaClave99' }));
+// ---- compras a proveedores ----
+{
+  const M = ok(rt.call('login', { email: 'master@test.com', password: 'Clave12345' })).token;
+  const prov = ok(rt.call('crear', { tabla: 'Proveedores', datos: { Nombre: 'Distribuidora Norte' } }, M));
+  const stk = (id) => Number(ok(rt.call('listar', { tabla: 'Productos' }, M)).find(x => x.ID_Producto === id).Stock_Actual);
+  const s0 = stk(p2.ID_Producto);
+  bad(rt.call('crearCompra', { ID_Proveedor: prov.ID_Proveedor, items: [] }, M), 'al menos un producto');
+  bad(rt.call('crearCompra', { ID_Proveedor: prov.ID_Proveedor, items: [{ ID_Producto: p2.ID_Producto, Cantidad: 0, Costo_Unitario: 10 }] }, M), 'Cantidad');
+  bad(rt.call('crearCompra', { ID_Proveedor: 'NO', items: [{ ID_Producto: p2.ID_Producto, Cantidad: 1, Costo_Unitario: 1 }] }, M), 'proveedor');
+  const c1 = ok(rt.call('crearCompra', { ID_Proveedor: prov.ID_Proveedor, nota: 'Fact 123', items: [{ ID_Producto: p2.ID_Producto, Cantidad: 10, Costo_Unitario: 450 }, { ID_Producto: p1.ID_Producto, Cantidad: 5, Costo_Unitario: 950 }] }, M));
+  assert.strictEqual(c1.Total, 9250); assert.strictEqual(c1.Estado, 'Recibida');
+  assert.strictEqual(stk(p2.ID_Producto), s0 + 10);
+  assert.strictEqual(Number(ok(rt.call('listar', { tabla: 'Productos' }, M)).find(x => x.ID_Producto === p2.ID_Producto).Precio_Compra), 450, 'actualiza costo');
+  // pendiente: no suma hasta recibir
+  const c2 = ok(rt.call('crearCompra', { ID_Proveedor: prov.ID_Proveedor, recibir: false, items: [{ ID_Producto: p2.ID_Producto, Cantidad: 20, Costo_Unitario: 500 }] }, M));
+  assert.strictEqual(c2.Estado, 'Pendiente'); assert.strictEqual(stk(p2.ID_Producto), s0 + 10);
+  ok(rt.call('recibirCompra', { ID_Compra: c2.ID_Compra }, M));
+  assert.strictEqual(stk(p2.ID_Producto), s0 + 30);
+  bad(rt.call('recibirCompra', { ID_Compra: c2.ID_Compra }, M), 'pendientes');
+  // anular recibida revierte stock; si ya se vendió no deja
+  ok(rt.call('anularCompra', { ID_Compra: c2.ID_Compra, motivo: 'error' }, M));
+  assert.strictEqual(stk(p2.ID_Producto), s0 + 10);
+  bad(rt.call('anularCompra', { ID_Compra: c2.ID_Compra }, M), 'ya está anulada');
+  // vender casi todo y luego intentar anular c1
+  ok(rt.call('ajustarStock', { ID_Producto: p2.ID_Producto, tipo: 'Ajuste', nuevoStock: 3 }, M));
+  bad(rt.call('anularCompra', { ID_Compra: c1.ID_Compra }, M), 'ya se vendió');
+  const lc = ok(rt.call('listarCompras', {}, M));
+  assert.strictEqual(lc.cantidad, 1); assert.strictEqual(lc.total, 9250);
+  assert.strictEqual(lc.rows.length, 2); assert.strictEqual(lc.rows.find(r => r.ID_Compra === c1.ID_Compra).items.length, 2);
+  assert.strictEqual(lc.rows[0].Proveedor, 'Distribuidora Norte');
+  // sin permiso: ventas solo ve proveedores
+  const Vt = ok(rt.call('login', { email: 'ventas@test.com', password: 'NuevaClave99' })).token;
+  bad(rt.call('crearCompra', { ID_Proveedor: prov.ID_Proveedor, items: [{ ID_Producto: p2.ID_Producto, Cantidad: 1, Costo_Unitario: 1 }] }, Vt), 'permiso');
+  bad(rt.call('crear', { tabla: 'Compras', datos: { Total: 1 } }, M), 'No se puede crear');
+  ok(rt.call('listarCompras', {}, Vt));
+}
+
+// ---- mapa en vivo ----
+{
+  const M = ok(rt.call('login', { email: 'master@test.com', password: 'Clave12345' })).token;
+  const Jt = ok(rt.call('login', { email: 'juan@test.com', password: 'Juan123456' })).token;
+  bad(rt.call('ubicacion', { lat: -33.4, lng: -70.6 }, M), 'repartidores');
+  bad(rt.call('ubicacion', { lat: 999, lng: 1 }, Jt), 'inválida');
+  bad(rt.call('mapaVivo', {}, Jt), 'administración');
+  const v = ok(rt.call('crearVenta', { tipoEntrega: 'Delivery', direccion: 'Calle 1', items: [{ ID_Producto: p1.ID_Producto, Cantidad: 1 }],
+    delivery: { ID_Delivery: del.ID_Delivery, Monto_Delivery: 1000, Destino_LatLong: '-33.4500,-70.6600' } }, M));
+  const sv = ok(rt.call('misServicios', { estados: ['Asignado'] }, Jt));
+  ok(rt.call('servicioEstado', { ID_Servicio: sv[0].ID_Servicio, estado: 'Aceptado' }, Jt));
+  ok(rt.call('ubicacion', { lat: -33.44, lng: -70.65 }, Jt));
+  const mv = ok(rt.call('mapaVivo', {}, M));
+  const r = mv.repartidores.find(x => x.ID_Delivery === del.ID_Delivery);
+  assert.strictEqual(r.lat, -33.44); assert.strictEqual(r.lng, -70.65);
+  assert.strictEqual(r.servicios.length, 1); assert.deepStrictEqual(r.servicios[0].dest, [-33.45, -70.66]);
+  assert.strictEqual(r.ruta.length, 1, 'rastro con pedido en curso');
+  ok(rt.call('ubicacion', { lat: -33.43, lng: -70.64 }, Jt));
+  assert.strictEqual(ok(rt.call('mapaVivo', {}, M)).repartidores.find(x => x.ID_Delivery === del.ID_Delivery).ruta.length, 1, 'rastro limitado a 1/min');
+  assert(mv.origen && mv.origen.length === 2);
+}
+
 // bloqueo por intentos
 for (let i = 0; i < 5; i++) rt.call('login', { email: 'juan@test.com', password: 'x' });
 bad(rt.call('login', { email: 'juan@test.com', password: 'Juan123456' }), 'Demasiados intentos');
