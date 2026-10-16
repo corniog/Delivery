@@ -163,7 +163,7 @@ T["Ventas"] = [
  ("ID_Venta","Text (KEY)","Identificador. AppSheet: UNIQUEID() o correlativo","V000001"),
  ("Fecha_Hora","DateTime","Automático: NOW()",now),
  ("ID_Cliente","Ref → Clientes","Cliente (se puede crear desde la venta con Add new)","CL0001"),
- ("Tipo_Entrega","Enum: Retiro en local|Delivery","Si es Delivery se crea un servicio","Delivery"),
+ ("Tipo_Entrega","Enum: Retiro en local|Para servir|Delivery","Si es Delivery se crea un servicio","Delivery"),
  ("Subtotal","Price","Suma de Detalle_Venta (virtual column)","3000"),
  ("Descuento","Price","Descuento total","0"),
  ("Costo_Delivery","Price","Monto del delivery (si aplica)","1500"),

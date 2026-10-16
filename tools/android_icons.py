@@ -6,7 +6,10 @@ import sys, os
 from PIL import Image
 
 res = sys.argv[1]
-src = Image.open(os.path.join(os.path.dirname(__file__), '..', 'web', 'public', 'icon-512.png')).convert('RGBA')
+default = os.path.join(os.path.dirname(__file__), '..', 'web', 'public', 'icon-512.png')
+src = Image.open(sys.argv[2] if len(sys.argv) > 2 else default).convert('RGBA')
+if src.width != src.height:
+    side = min(src.size); src = src.crop(((src.width - side) // 2, (src.height - side) // 2, (src.width + side) // 2, (src.height + side) // 2))
 legacy = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
 for d, px in legacy.items():
     folder = os.path.join(res, 'mipmap-' + d)

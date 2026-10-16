@@ -36,6 +36,7 @@ jobs:
           URL: ${{ inputs.url_api }}
           IDAPP: ${{ inputs.id_app }}
         run: |
+          pip install pillow
           python3 - <<'PY'
           import json, os, re
           nombre = os.environ.get('NOMBRE', '').strip() or 'App Negocio'
@@ -49,6 +50,15 @@ jobs:
           if url:
               json.dump({'API_URL': url}, open('public/config.json', 'w'), indent=2)
           open(os.environ['GITHUB_ENV'], 'a').write('VITE_APP_NAME=' + nombre + '\n')
+          # Ícono propio del negocio: sube iconos/<ID de la app>.png (cuadrado, mín. 512x512) al repo
+          from PIL import Image
+          ico = '../iconos/' + idapp + '.png'
+          if os.path.exists(ico):
+              im = Image.open(ico).convert('RGBA'); side = min(im.size)
+              im = im.crop(((im.width - side) // 2, (im.height - side) // 2, (im.width + side) // 2, (im.height + side) // 2))
+              im.resize((512, 512), Image.LANCZOS).save('public/icon-512.png')
+              im.resize((192, 192), Image.LANCZOS).save('public/icon-192.png')
+              print('Usando ícono propio:', ico)
           PY
       - name: Compilar la web
         working-directory: web
@@ -77,7 +87,7 @@ jobs:
       - name: Íconos de la app
         run: |
           pip install pillow
-          python3 tools/android_icons.py web/android/app/src/main/res
+          python3 tools/android_icons.py web/android/app/src/main/res web/public/icon-512.png
       - name: Compilar APK
         working-directory: web
         run: |

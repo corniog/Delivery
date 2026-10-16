@@ -99,6 +99,14 @@ assert.deepStrictEqual(Object.keys(ok(rt.call('exportar', { hojas: ['Usuarios', 
 // cambio de contraseña
 ok(rt.call('cambiarPassword', { actual: 'Ventas1234', nueva: 'NuevaClave99' }, V));
 ok(rt.call('login', { email: 'ventas@test.com', password: 'NuevaClave99' }));
+// ---- venta para servir ----
+{
+  const M2 = ok(rt.call('login', { email: 'master@test.com', password: 'Clave12345' })).token;
+  const vs = ok(rt.call('crearVenta', { tipoEntrega: 'Para servir', items: [{ ID_Producto: p2.ID_Producto, Cantidad: 1 }] }, M2));
+  assert.strictEqual(vs.venta.Tipo_Entrega, 'Para servir');
+  assert.strictEqual(ok(rt.call('misServicios', {}, M2)).filter(x => x.ID_Venta === vs.venta.ID_Venta).length, 0, 'sin servicio de delivery');
+}
+
 // ---- compras a proveedores ----
 {
   const M = ok(rt.call('login', { email: 'master@test.com', password: 'Clave12345' })).token;

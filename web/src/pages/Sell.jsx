@@ -214,7 +214,7 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
           </label>
           <label className="f">Entrega
             <select className="input" value={f.tipoEntrega} onChange={(e) => set('tipoEntrega', e.target.value)}>
-              <option>Retiro en local</option>{can('Delivery', 'Crear') && <option>Delivery</option>}
+              <option>Retiro en local</option><option>Para servir</option>{can('Delivery', 'Crear') && <option>Delivery</option>}
             </select>
           </label>
           <label className="f">Descuento<input className="input" type="number" min="0" inputMode="decimal" value={f.descuento} onChange={(e) => set('descuento', e.target.value)} /></label>

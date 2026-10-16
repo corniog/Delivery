@@ -728,7 +728,7 @@ function crearVenta_(ctx, d) {
     const negativo = bool_(cfg.PERMITIR_STOCK_NEGATIVO);
     const productos = {};
     readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
-    const entrega = d.tipoEntrega === 'Delivery' ? 'Delivery' : 'Retiro en local';
+    const entrega = ['Delivery', 'Para servir'].indexOf(d.tipoEntrega) >= 0 ? d.tipoEntrega : 'Retiro en local';
     if (d.ID_Cliente && !findBy_('Clientes', 'ID_Cliente', d.ID_Cliente)) fail_('El cliente no existe');
     if (entrega === 'Delivery') {
       if (!d.delivery || !d.delivery.ID_Delivery) fail_('Selecciona el delivery');

@@ -1,0 +1,1 @@
+Coloca aquí los íconos de cada negocio: iconos/<ID de la app>.png (cuadrado, PNG, mínimo 512x512).
