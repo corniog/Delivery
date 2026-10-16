@@ -54,8 +54,11 @@ jobs:
           from PIL import Image
           ico = '../iconos/' + idapp + '.png'
           if os.path.exists(ico):
-              im = Image.open(ico).convert('RGBA'); side = min(im.size)
-              im = im.crop(((im.width - side) // 2, (im.height - side) // 2, (im.width + side) // 2, (im.height + side) // 2))
+              im = Image.open(ico).convert('RGBA')
+              if im.width != im.height:  # cuadrar sin recortar: centrada sobre el color de su esquina
+                  side = max(im.size); bg = im.getpixel((0, 0))
+                  if bg[3] < 255: bg = (255, 255, 255, 255)
+                  c = Image.new('RGBA', (side, side), bg); c.paste(im, ((side - im.width) // 2, (side - im.height) // 2), im); im = c
               im.resize((512, 512), Image.LANCZOS).save('public/icon-512.png')
               im.resize((192, 192), Image.LANCZOS).save('public/icon-192.png')
               print('Usando ícono propio:', ico)

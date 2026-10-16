@@ -5,11 +5,23 @@ Uso: python3 tools/android_icons.py android/app/src/main/res
 import sys, os
 from PIL import Image
 
+def cuadrar(im):
+    """Hace la imagen cuadrada SIN recortarla: la centra sobre un fondo del color de su esquina (blanco si es transparente)."""
+    im = im.convert('RGBA')
+    if im.width == im.height:
+        return im
+    side = max(im.size)
+    bg = im.getpixel((0, 0))
+    if bg[3] < 255:
+        bg = (255, 255, 255, 255)
+    out = Image.new('RGBA', (side, side), bg)
+    out.paste(im, ((side - im.width) // 2, (side - im.height) // 2), im)
+    return out
+
+
 res = sys.argv[1]
 default = os.path.join(os.path.dirname(__file__), '..', 'web', 'public', 'icon-512.png')
-src = Image.open(sys.argv[2] if len(sys.argv) > 2 else default).convert('RGBA')
-if src.width != src.height:
-    side = min(src.size); src = src.crop(((src.width - side) // 2, (src.height - side) // 2, (src.width + side) // 2, (src.height + side) // 2))
+src = cuadrar(Image.open(sys.argv[2] if len(sys.argv) > 2 else default))
 legacy = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
 for d, px in legacy.items():
     folder = os.path.join(res, 'mipmap-' + d)
