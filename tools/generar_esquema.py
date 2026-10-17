@@ -409,3 +409,10 @@ parts = [open(os.path.join(base,f),encoding="utf8").read() for f in ("Config.gs"
 head = "// ============================================================\n//  CÓDIGO COMPLETO DEL SERVIDOR (un solo archivo para pegar en Apps Script)\n//  Contiene: Config + Schema + Code + Setup. Edita ADMIN_EMAIL y ADMIN_PASSWORD abajo.\n// ============================================================\n\n"
 open(os.path.join(base,"TODO_EN_UN_ARCHIVO.gs"),"w",encoding="utf8").write(head+"\n\n".join(parts))
 print("TODO_EN_UN_ARCHIVO.gs written")
+
+# ---- esquema con tipos para el generador de Supabase ----
+_sb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "supabase")
+os.makedirs(_sb, exist_ok=True)
+with open(os.path.join(_sb, "esquema.json"), "w", encoding="utf8") as f:
+    json.dump({"tablas": {k: [[c[0], c[1]] for c in v] for k, v in T.items()}, "semillas": seeds}, f, ensure_ascii=False, indent=1)
+print("supabase/esquema.json written")

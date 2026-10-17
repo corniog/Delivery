@@ -1,0 +1,12 @@
+{
+  "name": "app-negocio-herramientas",
+  "private": true,
+  "description": "Herramientas de prueba del backend (no es la app web; esa está en /web)",
+  "scripts": {
+    "test:gas": "node tools/test-backend.js && node tools/test-licencia.js",
+    "test:supabase": "node tools/test-supabase.js"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10"
+  }
+}
