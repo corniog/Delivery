@@ -1,4 +1,4 @@
-const { createRuntime } = require('./gas-mock');
+const { createRuntime } = process.env.BACKEND === 'pg' ? require('./pg-runtime') : require('./gas-mock');
 const assert = require('assert');
 const rt = createRuntime({ admin: { email: 'master@test.com', password: 'Clave12345' } });
 rt.install();

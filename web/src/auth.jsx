@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { call, getToken, setToken } from './api.js';
+import { call, getToken, setToken, setNegocio } from './api.js';
 
 const Ctx = createContext(null);
 export const useAuth = () => useContext(Ctx);
@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [state, setState] = useState({ ready: false, user: null, perms: {}, config: {}, licencia: null, brand: { NOMBRE_NEGOCIO: 'Mi Negocio', LOGO: '' } });
 
   const applyMe = useCallback((me) => {
+    if (me.negocio) setNegocio(me.negocio);
     setState({ ready: true, user: me.user, perms: me.perms, config: me.config, funciones: me.funciones || null, maxUsuarios: me.maxUsuarios || 0, brand: { NOMBRE_NEGOCIO: me.config.NOMBRE_NEGOCIO || 'Mi Negocio', LOGO: me.config.LOGO || '' } });
   }, []);
 
@@ -47,6 +48,13 @@ export function AuthProvider({ children }) {
     window.location.hash = '#/';
     applyMe(r);
   };
+  // Crea un negocio nuevo (solo Supabase) y entra directo, con 15 días de prueba
+  const registrar = async (datos) => {
+    const r = await call('registrar', datos);
+    setToken(r.token);
+    window.location.hash = '#/';
+    applyMe(r);
+  };
   const logout = async () => {
     try { await call('logout'); } catch { /* ignorar */ }
     setToken(null);
@@ -67,5 +75,5 @@ export function AuthProvider({ children }) {
   const can = (mod, act = 'Ver') => !!(state.perms[mod] && state.perms[mod][act]);
   const isDelivery = !!(state.user && state.user.ID_Delivery);
 
-  return <Ctx.Provider value={{ ...state, login, logout, refresh, recheck, can, feat, isDelivery }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ...state, login, registrar, logout, refresh, recheck, can, feat, isDelivery }}>{children}</Ctx.Provider>;
 }

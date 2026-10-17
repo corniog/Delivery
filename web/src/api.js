@@ -1,5 +1,7 @@
-// ÚNICO punto de contacto con el servidor. Si algún día migras a otro backend
-// (Supabase, un servidor propio...), solo se cambia este archivo.
+// ÚNICO punto de contacto con el servidor. Habla con uno de dos motores, sin que el resto de la app lo note:
+//   · Google Apps Script (cada negocio con su propio Google Sheet)
+//   · Supabase (varios negocios en una base de datos, con registro propio y prueba gratis)
+// Se usa Supabase cuando hay SUPABASE_URL + SUPABASE_KEY (config.json, variables VITE_* o lo guardado en el login).
 const DEFAULT_URL = import.meta.env.VITE_API_URL || '';
 
 const store = {
@@ -9,6 +11,7 @@ const store = {
 
 // La URL puede venir de (1) lo guardado en el login, (2) public/config.json, (3) la variable VITE_API_URL
 let fileUrl = '';
+let fileSb = { url: '', key: '', negocio: '' };
 export async function loadConfig() {
   // La APK "en vivo" abre la web con ?api=<URL del negocio>. Solo se acepta dentro de la app nativa
   // (así un link malicioso en un navegador normal no puede cambiar a qué servidor se conecta el usuario).
@@ -19,26 +22,50 @@ export async function loadConfig() {
   } catch { /* ignorar */ }
   try {
     const r = await fetch('./config.json', { cache: 'no-store' });
-    if (r.ok) fileUrl = String((await r.json()).API_URL || '').trim();
+    if (r.ok) {
+      const j = await r.json();
+      fileUrl = String(j.API_URL || '').trim();
+      fileSb = { url: String(j.SUPABASE_URL || '').trim().replace(/\/+$/, ''), key: String(j.SUPABASE_KEY || '').trim(), negocio: String(j.NEGOCIO || '').trim().toLowerCase() };
+    }
   } catch { /* sin config.json: se usa lo demás */ }
 }
+const envSb = { url: String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/+$/, ''), key: String(import.meta.env.VITE_SUPABASE_KEY || ''), negocio: String(import.meta.env.VITE_NEGOCIO || '').toLowerCase() };
+export function getSupabase() {
+  const url = (store.get('sb_url') || fileSb.url || envSb.url || '').replace(/\/+$/, '');
+  const key = store.get('sb_key') || fileSb.key || envSb.key || '';
+  return url && key ? { url, key } : null;
+}
+// Las claves nuevas (sb_publishable_…) van solo en "apikey"; las antiguas (JWT "anon") también como Bearer
+const sbHeaders = (sb, extra) => ({ apikey: sb.key, ...(sb.key.startsWith('eyJ') ? { Authorization: 'Bearer ' + sb.key } : {}), ...extra });
+export const esSupabase = () => !!getSupabase();
+export const setSupabase = (url, key) => { store.set('sb_url', url ? url.trim() : null); store.set('sb_key', key ? key.trim() : null); };
+// Código del negocio (para mostrar su logo y nombre en el login). Viene de ?n=codigo, de lo guardado o de config.json
+export const getNegocio = () => {
+  try { const q = new URLSearchParams(window.location.search).get('n'); if (q && /^[a-z0-9]{1,30}$/i.test(q)) store.set('negocio', q.toLowerCase()); } catch { /* ignorar */ }
+  return store.get('negocio') || fileSb.negocio || envSb.negocio || '';
+};
+export const setNegocio = (c) => store.set('negocio', c ? String(c).toLowerCase() : null);
 export const getApiUrl = () => store.get('api_url') || fileUrl || DEFAULT_URL;
 export const setApiUrl = (u) => store.set('api_url', u ? u.trim() : null);
 export const getToken = () => store.get('token');
 export const setToken = (t) => store.set('token', t);
 
 export async function call(accion, datos = {}) {
-  const url = getApiUrl();
-  if (!url) throw new Error('Falta configurar la URL del servidor (Apps Script).');
+  const sb = getSupabase();
+  const url = sb ? sb.url + '/rest/v1/rpc/api' : getApiUrl();
+  if (!url) throw new Error('Falta configurar la URL del servidor.');
+  if (sb && accion === 'publico') datos = { negocio: getNegocio(), ...datos };
   let res;
   try {
-    // Sin cabeceras personalizadas: evita el "preflight" de CORS que Apps Script no soporta.
-    res = await fetch(url, { method: 'POST', body: JSON.stringify({ accion, datos, token: getToken() }) });
+    if (sb) res = await fetch(url, { method: 'POST', headers: sbHeaders(sb, { 'Content-Type': 'application/json' }), body: JSON.stringify({ accion, datos, token: getToken() }) });
+    // Apps Script: sin cabeceras personalizadas, para evitar el "preflight" de CORS que no soporta.
+    else res = await fetch(url, { method: 'POST', body: JSON.stringify({ accion, datos, token: getToken() }) });
   } catch {
     throw new Error('No hay conexión con el servidor. Revisa tu internet o la URL configurada.');
   }
   let json;
-  try { json = await res.json(); } catch { throw new Error('Respuesta inválida del servidor. Revisa la URL de la implementación.'); }
+  try { json = await res.json(); } catch { throw new Error('Respuesta inválida del servidor. Revisa la URL configurada.'); }
+  if (sb && json && json.ok === undefined) throw new Error(json.message || 'Error del servidor (revisa la URL y la clave de Supabase).');
   if (!json.ok) {
     if (json.code === 'LICENSE') window.dispatchEvent(new CustomEvent('license-blocked', { detail: json.licencia }));
     if (json.code === 'AUTH') { setToken(null); window.dispatchEvent(new Event('auth-expired')); }
@@ -72,5 +99,14 @@ function readB64(file) {
 }
 export async function subirArchivo(file, modulo) {
   const f = await fileToBase64(file);
-  return call('subirArchivo', { modulo, ...f });
+  const sb = getSupabase();
+  if (!sb) return call('subirArchivo', { modulo, ...f });
+  // Supabase: primero se reserva un lugar (se valida sesión y permisos) y luego se sube el archivo al almacenamiento
+  const bin = Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0));
+  const r = await call('subirArchivo', { modulo, mime: f.mime, nombre: f.nombre, tamano: bin.length });
+  let res;
+  try { res = await fetch(`${sb.url}/storage/v1/object/${r.bucket}/${r.path}`, { method: 'POST', headers: sbHeaders(sb, { 'Content-Type': f.mime, 'x-upsert': 'false' }), body: bin }); }
+  catch { throw new Error('No se pudo subir el archivo. Revisa tu conexión.'); }
+  if (!res.ok) throw new Error('No se pudo subir el archivo (' + res.status + ').');
+  return { id: r.id, url: sb.url + r.url };
 }

@@ -2,6 +2,8 @@
 --  API del sistema (equivale a backend/Code.gs). Todo entra por la función api().
 --  Las tablas NO se pueden leer ni escribir directamente: solo a través de api().
 -- ============================================================
+set search_path = public, extensions;
+
 drop type if exists ctx_t cascade;
 create type ctx_t as (
   tid uuid, uid text, email text, nombre text, telefono text, rol text, deliv text,
@@ -10,7 +12,7 @@ create type ctx_t as (
 
 -- ---------- Utilidades ----------
 create or replace function fail_(msg text, code text default '', extra text default null) returns void
-language plpgsql as $$ begin raise exception '%', msg using errcode = 'AP001', detail = code, hint = extra; end $$;
+language plpgsql as $$ begin raise exception '%', msg using errcode = 'AP001', detail = coalesce(code, ''), hint = coalesce(extra, ''); end $$;
 
 create or replace function nuevo_id(prefix text) returns text language sql as
 $$ select prefix || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)) $$;
@@ -175,7 +177,7 @@ create or replace function is_deliv(c ctx_t) returns boolean language sql immuta
 create or replace function funciones_plan(p_plan text, p_extra text) returns text[] language plpgsql immutable as $$
 declare
   todas text[] := array['compras','delivery','mapa','kpi','comanda','reportes','conocimiento'];
-  base text[]; n text := upper(translate(coalesce(p_plan, ''), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou')); t text; res text[] := '{}'; f text;
+  base text[]; n text := upper(translate(coalesce(p_plan, ''), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou')); t text; res text[] := '{}';
 begin
   if n like '%ESENCIAL%' then base := array['comanda','reportes','conocimiento'];
   else base := todas; end if;
@@ -235,7 +237,7 @@ begin
 end $$;
 
 -- ---------- Sesiones ----------
-create or replace function hash_token(p_token text) returns text language sql immutable as
+create or replace function hash_token(p_token text) returns text language sql immutable set search_path = public, extensions, pg_temp as
 $$ select encode(digest(p_token, 'sha256'), 'hex') $$;
 
 create or replace function build_ctx(p_tid uuid, p_u jsonb) returns ctx_t language plpgsql as $$
@@ -267,7 +269,7 @@ create or replace function me_data(c ctx_t) returns jsonb language sql stable as
     'user', jsonb_build_object('ID_Usuario', c.uid, 'Email', c.email, 'Nombre', c.nombre, 'Telefono', c.telefono, 'ID_Rol', c.rol, 'ID_Delivery', c.deliv),
     'perms', c.perms, 'config', cfg_all(c.tid),
     'funciones', case when c.funciones is null then null else to_jsonb(c.funciones) end,
-    'maxUsuarios', coalesce(c.maxu, 0)) $$;
+    'maxUsuarios', coalesce(c.maxu, 0), 'negocio', (select codigo from negocios where id = c.tid)) $$;
 
 create or replace function check_password(p text) returns void language plpgsql as $$
 begin
@@ -334,8 +336,16 @@ end $$;
 create or replace function registrar_(d jsonb) returns jsonb language plpgsql as $$
 declare
   em text := lower(btrim(tj(d, 'email'))); nom text := btrim(tj(d, 'negocio')); yo text := btrim(tj(d, 'nombre'));
-  cod text; tid uuid; tz text := 'America/Santiago'; u jsonb;
+  cod text; tid uuid; tz text := 'America/Santiago'; u jsonb; ip text;
 begin
+  begin ip := nullif(btrim(split_part(coalesce((current_setting('request.headers', true))::json ->> 'x-forwarded-for', ''), ',', 1)), '');
+  exception when others then ip := null; end;
+  if ip is not null then   -- freno anti-abuso: máximo 5 negocios nuevos por hora desde la misma IP
+    insert into intentos_login (clave, fallos, hasta) values ('reg:' || ip, 1, now() + interval '1 hour')
+    on conflict (clave) do update set fallos = case when intentos_login.hasta > now() then intentos_login.fallos + 1 else 1 end,
+      hasta = case when intentos_login.hasta > now() then intentos_login.hasta else now() + interval '1 hour' end;
+    if (select fallos from intentos_login where clave = 'reg:' || ip) > 5 then perform fail_('Demasiados registros desde tu conexión. Intenta más tarde.'); end if;
+  end if;
   if nom = '' then perform fail_('Escribe el nombre de tu negocio'); end if;
   if yo = '' then perform fail_('Escribe tu nombre'); end if;
   if em !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then perform fail_('Correo inválido'); end if;
@@ -786,4 +796,416 @@ begin
     'detalle', rows_json(c.tid, 'Detalle_Venta', format('"ID_Venta" = %L', d ->> 'ID_Venta')),
     'documento', (rows_json(c.tid, 'Documentos', format('"ID_Venta" = %L', d ->> 'ID_Venta')) -> 0),
     'cliente', case when v ->> 'ID_Cliente' <> '' then get_row(c.tid, 'Clientes', 'ID_Cliente', v ->> 'ID_Cliente') else null end);
+end $$;
+
+-- ---------- Delivery ----------
+create or replace function a_mis_servicios(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare estados text[] := case when jsonb_typeof(d -> 'estados') = 'array' then array(select jsonb_array_elements_text(d -> 'estados')) else '{}' end; r jsonb;
+begin
+  perform need_(c, 'Delivery', 'Ver');
+  select coalesce(jsonb_agg((to_jsonb(s) - 'tenant_id' - '_orden') || jsonb_build_object(
+      'items', coalesce((select jsonb_agg(jsonb_build_object('Nombre', dv."Nombre_Producto", 'Cantidad', dv."Cantidad") order by dv._orden)
+        from "Detalle_Venta" dv where dv.tenant_id = c.tid and dv."ID_Venta" = s."ID_Venta"), '[]'::jsonb),
+      'Cliente', coalesce(cl."Nombre", ''), 'Cliente_Telefono', coalesce(cl."Telefono", ''),
+      'Total_Venta', coalesce(v."Total", 0), 'Estado_Pago', coalesce(v."Estado_Pago", ''))
+    order by s."Fecha_Asignacion" desc, s._orden desc), '[]'::jsonb)
+  into r
+  from "Servicios_Delivery" s
+  left join "Ventas" v on v.tenant_id = s.tenant_id and v."ID_Venta" = s."ID_Venta"
+  left join "Clientes" cl on cl.tenant_id = s.tenant_id and cl."ID_Cliente" = v."ID_Cliente"
+  where s.tenant_id = c.tid
+    and (not is_deliv(c) or s."ID_Delivery" = c.deliv)
+    and (cardinality(estados) = 0 or s."Estado" = any(estados));
+  return r;
+end $$;
+
+create or replace function a_servicio_estado(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare s jsonb; estado text := tj(d, 'estado'); patch jsonb; fh text := ahora_txt(c.tz); v jsonb;
+begin
+  perform need_(c, 'Delivery', 'Ver');
+  s := get_row(c.tid, 'Servicios_Delivery', 'ID_Servicio', tj(d, 'ID_Servicio'));
+  if s is null then perform fail_('Servicio no encontrado'); end if;
+  if not (estado = any(array['Aceptado', 'En camino', 'Finalizado', 'Rechazado', 'Cancelado', 'Asignado'])) then perform fail_('Estado inválido'); end if;
+  if is_deliv(c) then
+    if s ->> 'ID_Delivery' <> c.deliv then perform fail_('Este servicio no es tuyo', 'PERM'); end if;
+    if not (estado = any(array['Aceptado', 'En camino', 'Finalizado', 'Rechazado'])) then perform fail_('Acción no permitida', 'PERM'); end if;
+  else
+    perform need_(c, 'Delivery', 'Editar');
+  end if;
+  if s ->> 'Estado' in ('Finalizado', 'Cancelado') then perform fail_('El servicio ya está cerrado'); end if;
+  patch := jsonb_build_object('Estado', estado);
+  if estado = 'Aceptado' then patch := patch || jsonb_build_object('Fecha_Aceptado', fh); end if;
+  if estado = 'Finalizado' then
+    patch := patch || jsonb_build_object('Fecha_Finalizado', fh);
+    if coalesce(d ->> 'Distancia_Km', '') <> '' then patch := patch || jsonb_build_object('Distancia_Km', nj(d, 'Distancia_Km')); end if;
+    if coalesce(d ->> 'Tiempo_Min', '') <> '' then patch := patch || jsonb_build_object('Tiempo_Min', nj(d, 'Tiempo_Min')); end if;
+  end if;
+  perform upd_row(c.tid, 'Servicios_Delivery', 'ID_Servicio', s ->> 'ID_Servicio', patch);
+  if estado in ('Finalizado', 'Rechazado') then
+    insert into "Alertas" (tenant_id, "ID_Alerta", "Fecha", "Tipo", "Referencia", "Mensaje", "Para_Rol", "Leida")
+    values (c.tid, nuevo_id('A'), fh, case when estado = 'Finalizado' then 'Delivery finalizado' else 'Delivery rechazado' end, s ->> 'ID_Servicio',
+      (s ->> 'Nombre_Delivery') || case when estado = 'Finalizado' then ' finalizó' else ' rechazó' end || ' el pedido ' || (s ->> 'ID_Venta') || ' (' || (s ->> 'Direccion_Entrega') || ')', 'R01,R02', false);
+  end if;
+  if estado = 'Finalizado' then
+    v := get_row(c.tid, 'Ventas', 'ID_Venta', s ->> 'ID_Venta');
+    if v is not null and v ->> 'Estado' <> 'Anulada' then update "Ventas" set "Estado" = 'Entregada' where tenant_id = c.tid and "ID_Venta" = v ->> 'ID_Venta'; end if;
+  end if;
+  perform audit_(c, 'Delivery', 'Editar', s ->> 'ID_Servicio', 'Estado → ' || estado);
+  return to_jsonb(true);
+end $$;
+
+create or replace function a_historial_delivery(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare desde text := coalesce(nullif(d ->> 'desde', ''), '0000-00-00'); hasta text := coalesce(nullif(d ->> 'hasta', ''), '9999-99-99');
+  q text := lower(btrim(tj(d, 'nombre'))); idd text := tj(d, 'ID_Delivery'); rows jsonb; tot numeric; km numeric; n integer;
+begin
+  if not can_(c, 'Historial', 'Ver') and not can_(c, 'Delivery', 'Ver') then perform fail_('No tienes permiso para ver el historial', 'PERM'); end if;
+  if is_deliv(c) then idd := c.deliv; end if;
+  select coalesce(jsonb_agg(to_jsonb(s) - 'tenant_id' - '_orden' order by s."Fecha_Asignacion" desc, s._orden desc), '[]'::jsonb),
+    coalesce(sum(s."Monto_Delivery") filter (where s."Estado" = 'Finalizado'), 0),
+    coalesce(sum(s."Distancia_Km") filter (where s."Estado" = 'Finalizado'), 0), count(*) filter (where s."Estado" = 'Finalizado')
+  into rows, tot, km, n
+  from "Servicios_Delivery" s
+  where s.tenant_id = c.tid and left(s."Fecha", 10) between desde and hasta
+    and (idd = '' or s."ID_Delivery" = idd) and (q = '' or position(q in lower(s."Nombre_Delivery")) > 0);
+  return jsonb_build_object('rows', rows, 'total', r2(tot), 'km', r2(km), 'servicios', n);
+end $$;
+
+-- ---------- Mapa en vivo ----------
+create or replace function parse_ll(v text) returns point language plpgsql immutable as $$
+declare a text[] := string_to_array(coalesce(v, ''), ',');
+begin
+  if cardinality(a) <> 2 then return null; end if;
+  begin return point(btrim(a[1])::float8, btrim(a[2])::float8); exception when others then return null; end;
+end $$;
+
+create or replace function a_ubicacion(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare lat numeric; lng numeric; r jsonb; ll text; act jsonb; ahora text := ahora_txt(c.tz);
+begin
+  if not is_deliv(c) then perform fail_('Solo los repartidores comparten ubicación', 'PERM'); end if;
+  begin lat := (d ->> 'lat')::numeric; lng := (d ->> 'lng')::numeric;
+  exception when others then perform fail_('Ubicación inválida'); end;
+  if lat is null or lng is null or abs(lat) > 90 or abs(lng) > 180 then perform fail_('Ubicación inválida'); end if;
+  r := get_row(c.tid, 'Deliverys', 'ID_Delivery', c.deliv);
+  if r is null then perform fail_('Repartidor no encontrado'); end if;
+  ll := to_char(lat, 'FM999990.000000') || ',' || to_char(lng, 'FM9999990.000000');
+  update "Deliverys" set "Ultima_Ubicacion" = ll, "Fecha_Ubicacion" = ahora where tenant_id = c.tid and "ID_Delivery" = c.deliv;
+  -- Rastro: 1 punto por minuto, solo si hay un pedido en curso
+  if not exists (select 1 from "Ubicaciones_Delivery" where tenant_id = c.tid and "ID_Delivery" = c.deliv and "Fecha_Hora" > ahora_txt(c.tz, interval '-60 seconds')) then
+    select to_jsonb(s) into act from "Servicios_Delivery" s
+      where s.tenant_id = c.tid and s."ID_Delivery" = c.deliv and s."Estado" in ('Aceptado', 'En camino') order by s._orden limit 1;
+    if act is not null then
+      insert into "Ubicaciones_Delivery" (tenant_id, "ID_Ubic", "ID_Servicio", "ID_Delivery", "LatLong", "Fecha_Hora")
+      values (c.tid, nuevo_id('UB'), act ->> 'ID_Servicio', c.deliv, ll, ahora);
+    end if;
+  end if;
+  return to_jsonb(true);
+end $$;
+
+create or replace function a_mapa_vivo(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare cfg jsonb := cfg_all(c.tid); hoy text := hoy_txt(c.tz); o point := parse_ll(cfg ->> 'ORIGEN_LATLONG'); reps jsonb; r record; pos point; min_ integer; ruta jsonb; srv jsonb; dest point; u record;
+begin
+  perform need_(c, 'Delivery', 'Ver');
+  if is_deliv(c) then perform fail_('El mapa es solo para administración', 'PERM'); end if;
+  reps := '[]'::jsonb;
+  for r in select * from "Deliverys" where tenant_id = c.tid and "Activo" order by _orden loop
+    pos := parse_ll(r."Ultima_Ubicacion"); min_ := null;
+    if r."Fecha_Ubicacion" <> '' then
+      begin min_ := greatest(0, round(extract(epoch from (now() - (r."Fecha_Ubicacion"::timestamp at time zone c.tz))) / 60))::int;
+      exception when others then min_ := null; end;
+    end if;
+    ruta := '[]'::jsonb;
+    for u in select "LatLong" from (select "LatLong", _orden from "Ubicaciones_Delivery" where tenant_id = c.tid and "ID_Delivery" = r."ID_Delivery" and left("Fecha_Hora", 10) = hoy order by _orden desc limit 60) x order by _orden loop
+      if parse_ll(u."LatLong") is not null then ruta := ruta || jsonb_build_array(jsonb_build_array((parse_ll(u."LatLong"))[0], (parse_ll(u."LatLong"))[1])); end if;
+    end loop;
+    srv := '[]'::jsonb;
+    for u in select s.*, coalesce(cl."Nombre", '') as cliente from "Servicios_Delivery" s
+        left join "Ventas" v on v.tenant_id = s.tenant_id and v."ID_Venta" = s."ID_Venta"
+        left join "Clientes" cl on cl.tenant_id = s.tenant_id and cl."ID_Cliente" = v."ID_Cliente"
+        where s.tenant_id = c.tid and s."ID_Delivery" = r."ID_Delivery" and s."Estado" in ('Asignado', 'Aceptado', 'En camino') order by s._orden loop
+      dest := parse_ll(u."Destino_LatLong");
+      srv := srv || jsonb_build_array(jsonb_build_object('ID_Servicio', u."ID_Servicio", 'ID_Venta', u."ID_Venta", 'Estado', u."Estado", 'Direccion_Entrega', u."Direccion_Entrega",
+        'dest', case when dest is null then null else jsonb_build_array(dest[0], dest[1]) end, 'Cliente', u.cliente));
+    end loop;
+    reps := reps || jsonb_build_array(jsonb_build_object('ID_Delivery', r."ID_Delivery", 'Nombre', r."Nombre", 'Telefono', r."Telefono", 'Vehiculo', r."Vehiculo", 'Estado', r."Estado",
+      'lat', case when pos is null then null else pos[0] end, 'lng', case when pos is null then null else pos[1] end,
+      'Fecha_Ubicacion', r."Fecha_Ubicacion", 'hace_min', min_, 'ruta', ruta, 'servicios', srv));
+  end loop;
+  return jsonb_build_object('origen', case when o is null then null else jsonb_build_array(o[0], o[1]) end, 'repartidores', reps);
+end $$;
+
+-- ---------- KPI ----------
+create or replace function a_kpi(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare desde text := coalesce(nullif(d ->> 'desde', ''), '0000-00-00'); hasta text := coalesce(nullif(d ->> 'hasta', ''), '9999-99-99');
+  n integer; tot numeric; margen numeric; top jsonb; pdia jsonb; phora jsonb; pcat jsonb; del jsonb; bajo jsonb;
+begin
+  perform need_(c, 'KPI', 'Ver');
+  create temp table if not exists _kv (id text) on commit drop;
+  truncate _kv;
+  insert into _kv select "ID_Venta" from "Ventas" where tenant_id = c.tid and "Estado" <> 'Anulada' and left("Fecha_Hora", 10) between desde and hasta;
+  select count(*), coalesce(sum("Total"), 0) into n, tot from "Ventas" where tenant_id = c.tid and "ID_Venta" in (select id from _kv);
+  select coalesce(sum(dv."Subtotal" - dv."Costo_Unitario" * dv."Cantidad"), 0) into margen from "Detalle_Venta" dv where dv.tenant_id = c.tid and dv."ID_Venta" in (select id from _kv);
+  select coalesce(jsonb_agg(jsonb_build_object('nombre', nombre, 'cantidad', r2(cant), 'monto', r2(monto)) order by cant desc), '[]'::jsonb) into top from (
+    select (array_agg(dv."Nombre_Producto" order by dv._orden))[1] as nombre, sum(dv."Cantidad") as cant, sum(dv."Subtotal") as monto
+    from "Detalle_Venta" dv where dv.tenant_id = c.tid and dv."ID_Venta" in (select id from _kv) group by dv."ID_Producto" order by sum(dv."Cantidad") desc limit 10) t;
+  select jsonb_agg(jsonb_build_object('dia', dn, 'ventas', coalesce(x.v, 0), 'monto', r2(coalesce(x.m, 0))) order by ord) into pdia
+  from unnest(array['lunes','martes','miércoles','jueves','viernes','sábado','domingo']) with ordinality as dd(dn, ord)
+  left join (select coalesce(nullif(v."Dia_Semana", ''), (dias_txt())[extract(dow from v."Fecha_Hora"::timestamp)::int + 1]) as dia, count(*) as v, sum(v."Total") as m
+             from "Ventas" v where v.tenant_id = c.tid and v."ID_Venta" in (select id from _kv) group by 1) x on x.dia = dd.dn;
+  select coalesce(jsonb_agg(jsonb_build_object('hora', h || ':00', 'ventas', k) order by h), '[]'::jsonb) into phora
+  from (select substr("Fecha_Hora", 12, 2) as h, count(*) as k from "Ventas" where tenant_id = c.tid and "ID_Venta" in (select id from _kv) group by 1) t;
+  select coalesce(jsonb_agg(jsonb_build_object('categoria', coalesce(nullif(cn, ''), 'Sin categoría'), 'monto', r2(m)) order by m desc), '[]'::jsonb) into pcat from (
+    select coalesce(ca."Nombre", '') as cn, sum(dv."Subtotal") as m from "Detalle_Venta" dv
+    left join "Categorias" ca on ca.tenant_id = dv.tenant_id and ca."ID_Categoria" = dv."ID_Categoria"
+    where dv.tenant_id = c.tid and dv."ID_Venta" in (select id from _kv) group by dv."ID_Categoria", ca."Nombre") t;
+  select coalesce(jsonb_agg(jsonb_build_object('nombre', "Nombre_Delivery", 'servicios', k, 'monto', r2(m), 'km', r2(km))), '[]'::jsonb) into del from (
+    select "Nombre_Delivery", count(*) k, sum("Monto_Delivery") m, sum("Distancia_Km") km from "Servicios_Delivery"
+    where tenant_id = c.tid and "Estado" = 'Finalizado' and left("Fecha", 10) between desde and hasta group by "Nombre_Delivery") t;
+  select coalesce(jsonb_agg(jsonb_build_object('nombre', "Nombre", 'stock', "Stock_Actual", 'minimo', "Stock_Minimo") order by _orden), '[]'::jsonb) into bajo
+  from "Productos" where tenant_id = c.tid and "Activo" and "Stock_Actual" <= "Stock_Minimo";
+  return jsonb_build_object('ventas', n, 'total', r2(tot), 'ticketPromedio', case when n > 0 then r2(tot / n) else 0 end, 'margen', r2(margen),
+    'topProductos', top, 'porDia', pdia, 'porHora', phora, 'porCategoria', pcat, 'delivery', del, 'bajoStock', bajo);
+end $$;
+
+-- ---------- Usuarios y permisos ----------
+create or replace function usuarios_activos(p_tid uuid) returns integer language sql stable as
+$$ select count(*)::int from "Usuarios" where tenant_id = p_tid and "Activo" $$;
+
+create or replace function a_usuarios_crear(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare em text := lower(btrim(tj(d, 'Email'))); id text := nuevo_id('U');
+begin
+  perform need_(c, 'Usuarios', 'Crear');
+  if em !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then perform fail_('Correo inválido'); end if;
+  if tj(d, 'Nombre') = '' then perform fail_('Falta el nombre'); end if;
+  perform check_password(d ->> 'password');
+  if get_row(c.tid, 'Roles', 'ID_Rol', tj(d, 'ID_Rol')) is null then perform fail_('Rol inválido'); end if;
+  if d ->> 'ID_Rol' = 'R01' and not is_master(c) then perform fail_('Solo un Master puede crear otro Master', 'PERM'); end if;
+  if exists (select 1 from "Usuarios" where lower("Email") = em) then perform fail_('Ya existe un usuario con ese correo'); end if;
+  if coalesce(c.maxu, 0) > 0 and usuarios_activos(c.tid) >= c.maxu then
+    perform fail_('Tu plan permite hasta ' || c.maxu || ' usuarios activos. Consulta a tu proveedor para ampliarlo.', 'PLAN');
+  end if;
+  insert into "Usuarios" (tenant_id, "ID_Usuario", "Email", "Nombre", "Telefono", "ID_Rol", "ID_Delivery", "Activo", "Password_Hash", "Fecha_Creacion")
+  values (c.tid, id, em, d ->> 'Nombre', tj(d, 'Telefono'), d ->> 'ID_Rol', tj(d, 'ID_Delivery'), true, crypt(d ->> 'password', gen_salt('bf', 10)), ahora_txt(c.tz));
+  perform audit_(c, 'Usuarios', 'Crear', id, em);
+  return jsonb_build_object('ID_Usuario', id);
+end $$;
+
+create or replace function a_usuarios_actualizar(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare u jsonb; patch jsonb := '{}'::jsonb; k text;
+begin
+  perform need_(c, 'Usuarios', 'Editar');
+  u := get_row(c.tid, 'Usuarios', 'ID_Usuario', tj(d, 'ID_Usuario'));
+  if u is null then perform fail_('Usuario no encontrado'); end if;
+  foreach k in array array['Nombre', 'Telefono', 'ID_Delivery'] loop
+    if d ? k then patch := patch || jsonb_build_object(k, d -> k); end if;
+  end loop;
+  if d ? 'ID_Rol' then
+    if get_row(c.tid, 'Roles', 'ID_Rol', tj(d, 'ID_Rol')) is null then perform fail_('Rol inválido'); end if;
+    if (d ->> 'ID_Rol' = 'R01' or u ->> 'ID_Rol' = 'R01') and not is_master(c) then perform fail_('Solo un Master puede cambiar este rol', 'PERM'); end if;
+    patch := patch || jsonb_build_object('ID_Rol', d ->> 'ID_Rol');
+  end if;
+  if d ? 'Activo' then
+    if u ->> 'ID_Usuario' = c.uid and not (d ->> 'Activo')::boolean then perform fail_('No puedes deshabilitarte a ti mismo'); end if;
+    if (d ->> 'Activo')::boolean and not (u ->> 'Activo')::boolean and coalesce(c.maxu, 0) > 0 and usuarios_activos(c.tid) >= c.maxu then
+      perform fail_('Tu plan permite hasta ' || c.maxu || ' usuarios activos. Consulta a tu proveedor para ampliarlo.', 'PLAN');
+    end if;
+    patch := patch || jsonb_build_object('Activo', (d ->> 'Activo')::boolean);
+  end if;
+  perform upd_row(c.tid, 'Usuarios', 'ID_Usuario', u ->> 'ID_Usuario', patch);
+  if (patch ? 'Activo') and not (patch ->> 'Activo')::boolean then delete from sesiones where tenant_id = c.tid and id_usuario = u ->> 'ID_Usuario'; end if;
+  perform audit_(c, 'Usuarios', 'Editar', u ->> 'ID_Usuario', (select jsonb_agg(kk) from jsonb_object_keys(patch) kk)::text);
+  return to_jsonb(true);
+end $$;
+
+create or replace function a_usuarios_password(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare u jsonb;
+begin
+  perform need_(c, 'Usuarios', 'Editar');
+  u := get_row(c.tid, 'Usuarios', 'ID_Usuario', tj(d, 'ID_Usuario'));
+  if u is null then perform fail_('Usuario no encontrado'); end if;
+  if u ->> 'ID_Rol' = 'R01' and not is_master(c) then perform fail_('Solo un Master puede cambiar esta contraseña', 'PERM'); end if;
+  perform check_password(d ->> 'password');
+  update "Usuarios" set "Password_Hash" = crypt(d ->> 'password', gen_salt('bf', 10)) where tenant_id = c.tid and "ID_Usuario" = u ->> 'ID_Usuario';
+  delete from sesiones where tenant_id = c.tid and id_usuario = u ->> 'ID_Usuario';
+  perform audit_(c, 'Usuarios', 'Editar', u ->> 'ID_Usuario', 'Contraseña restablecida');
+  return to_jsonb(true);
+end $$;
+
+create or replace function a_permisos_guardar(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare por_usuario boolean := tj(d, 'ID_Usuario') <> ''; m jsonb; a text; vals jsonb; tabla text;
+begin
+  if not is_master(c) then perform fail_('Solo el Master puede modificar permisos', 'PERM'); end if;
+  tabla := case when por_usuario then 'Permisos_Usuario' else 'Permisos' end;
+  if not por_usuario and d ->> 'ID_Rol' = 'R01' then perform fail_('El rol Master siempre tiene todos los permisos'); end if;
+  if not por_usuario and get_row(c.tid, 'Roles', 'ID_Rol', tj(d, 'ID_Rol')) is null then perform fail_('Rol inválido'); end if;
+  for m in select * from jsonb_array_elements(coalesce(d -> 'matriz', '[]'::jsonb)) loop
+    if not (tj(m, 'Modulo') = any(modulos_())) then continue; end if;
+    vals := '{}'::jsonb;
+    foreach a in array acciones_() loop vals := vals || jsonb_build_object(a, coalesce((m ->> a)::boolean, false)); end loop;
+    if por_usuario then
+      if exists (select 1 from "Permisos_Usuario" where tenant_id = c.tid and "ID_Usuario" = d ->> 'ID_Usuario' and "Modulo" = m ->> 'Modulo') then
+        update "Permisos_Usuario" set "Ver" = (vals ->> 'Ver')::boolean, "Crear" = (vals ->> 'Crear')::boolean, "Editar" = (vals ->> 'Editar')::boolean,
+          "Eliminar" = (vals ->> 'Eliminar')::boolean, "Exportar" = (vals ->> 'Exportar')::boolean
+        where tenant_id = c.tid and "ID_Usuario" = d ->> 'ID_Usuario' and "Modulo" = m ->> 'Modulo';
+      else
+        perform ins_row(c.tid, 'Permisos_Usuario', vals || jsonb_build_object('ID_PermU', nuevo_id('PU'), 'ID_Usuario', d ->> 'ID_Usuario', 'Modulo', m ->> 'Modulo'));
+      end if;
+    else
+      if exists (select 1 from "Permisos" where tenant_id = c.tid and "ID_Rol" = d ->> 'ID_Rol' and "Modulo" = m ->> 'Modulo') then
+        update "Permisos" set "Ver" = (vals ->> 'Ver')::boolean, "Crear" = (vals ->> 'Crear')::boolean, "Editar" = (vals ->> 'Editar')::boolean,
+          "Eliminar" = (vals ->> 'Eliminar')::boolean, "Exportar" = (vals ->> 'Exportar')::boolean
+        where tenant_id = c.tid and "ID_Rol" = d ->> 'ID_Rol' and "Modulo" = m ->> 'Modulo';
+      else
+        perform ins_row(c.tid, 'Permisos', vals || jsonb_build_object('ID_Permiso', (d ->> 'ID_Rol') || '-' || (m ->> 'Modulo'), 'ID_Rol', d ->> 'ID_Rol', 'Modulo', m ->> 'Modulo'));
+      end if;
+    end if;
+  end loop;
+  perform audit_(c, 'Usuarios', 'Editar', coalesce(nullif(d ->> 'ID_Usuario', ''), d ->> 'ID_Rol'), 'Permisos actualizados');
+  return to_jsonb(true);
+end $$;
+
+-- ---------- Reportes, archivos y suscripción ----------
+create or replace function a_exportar(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare permitidas jsonb := jsonb_build_object('Productos', 'Inventario', 'Categorias', 'Categorias', 'Clientes', 'Clientes', 'Proveedores', 'Proveedores',
+    'Ventas', 'Ventas', 'Detalle_Venta', 'Ventas', 'Servicios_Delivery', 'Delivery', 'Movimientos_Inventario', 'Inventario', 'Deliverys', 'Delivery', 'Compras', 'Proveedores');
+  h text; o jsonb := '{}'::jsonb; ks text[] := '{}';
+begin
+  perform need_(c, 'Reportes', 'Exportar');
+  for h in select jsonb_array_elements_text(coalesce(d -> 'hojas', '[]'::jsonb)) loop
+    if permitidas ->> h is null then continue; end if;
+    if not can_(c, permitidas ->> h, 'Ver') then continue; end if;
+    o := o || jsonb_build_object(h, rows_json(c.tid, h)); ks := ks || h;
+  end loop;
+  perform audit_(c, 'Reportes', 'Exportar', '', array_to_string(ks, ', '));
+  return o;
+end $$;
+
+-- Reserva un lugar para subir un archivo (imagen/PDF) al almacenamiento; la app lo sube y usa la URL pública
+create or replace function a_subir_archivo(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare modulo text := coalesce(nullif(d ->> 'modulo', ''), 'Inventario'); mime text := tj(d, 'mime'); ext text; ruta text; tam numeric := nj(d, 'tamano');
+begin
+  if not (modulo = any(modulos_())) then perform fail_('Módulo inválido'); end if;
+  if not can_(c, modulo, 'Crear') and not can_(c, modulo, 'Editar') then perform fail_('No tienes permiso para subir archivos en ' || modulo, 'PERM'); end if;
+  ext := case mime when 'image/png' then 'png' when 'image/jpeg' then 'jpg' when 'image/webp' then 'webp' when 'image/gif' then 'gif' when 'application/pdf' then 'pdf' else null end;
+  if ext is null then perform fail_('Tipo de archivo no permitido'); end if;
+  if tam <= 0 or tam > 6 * 1024 * 1024 then perform fail_('Archivo vacío o demasiado grande (máx. ~6 MB)'); end if;
+  ruta := c.tid::text || '/' || gen_random_uuid()::text || '.' || ext;
+  insert into subidas (path, tenant_id, mime, expira) values (ruta, c.tid, mime, now() + interval '10 minutes');
+  perform audit_(c, modulo, 'Crear', ruta, 'Archivo ' || left(tj(d, 'nombre'), 80));
+  return jsonb_build_object('id', ruta, 'path', ruta, 'bucket', 'archivos', 'url', '/storage/v1/object/public/archivos/' || ruta);
+end $$;
+
+create or replace function a_suscripcion(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare l jsonb;
+begin
+  if not is_master(c) then perform fail_('Solo el Master puede ver la suscripción', 'PERM'); end if;
+  l := lic_(c.tid);
+  return jsonb_build_object('funciones', l -> 'funciones', 'maxUsuarios', l -> 'maxUsuarios', 'plan', l -> 'plan', 'whatsapp', l -> 'whatsapp',
+    'vencimiento', l -> 'vencimiento', 'diasRestantes', l -> 'diasRestantes', 'estado', l -> 'estado');
+end $$;
+
+-- ---------- Control de funciones por plan ----------
+create or replace function accion_funcion(a text) returns text language sql immutable as $$
+  select (jsonb_build_object('crearCompra', 'compras', 'recibirCompra', 'compras', 'anularCompra', 'compras', 'listarCompras', 'compras',
+    'ubicacion', 'mapa', 'mapaVivo', 'mapa', 'misServicios', 'delivery', 'servicioEstado', 'delivery', 'historialDelivery', 'delivery',
+    'kpi', 'kpi', 'exportar', 'reportes')) ->> a $$;
+
+-- ---------- Punto de entrada único ----------
+create or replace function api(accion text, datos jsonb default '{}'::jsonb, token text default null) returns jsonb
+language plpgsql security definer set search_path = public, extensions, pg_temp as $$
+declare c ctx_t; l jsonb; d jsonb := coalesce(datos, '{}'::jsonb); f text; r jsonb; msg text; det text; hint text;
+begin
+  if accion = 'publico' then return jsonb_build_object('ok', true, 'data', publico_(d)); end if;
+  if accion = 'login' then return login_(d); end if;
+  if accion = 'registrar' then return jsonb_build_object('ok', true, 'data', registrar_(d)); end if;
+  c := autenticar_(token);
+  if accion = 'logout' then
+    delete from sesiones where token_hash = hash_token(token);
+    return jsonb_build_object('ok', true, 'data', true);
+  end if;
+  if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','crearVenta','anularVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
+    perform fail_('Acción desconocida: ' || accion);
+  end if;
+  l := lic_(c.tid);
+  if (l ->> 'bloqueada')::boolean then perform fail_(l ->> 'mensaje', 'LICENSE', lic_publica(l)::text); end if;
+  f := accion_funcion(accion);
+  if f is not null then perform needfeat_(c, f); end if;
+  if accion in ('listar', 'crear', 'actualizar', 'eliminar') and tabla_funcion(tj(d, 'tabla')) is not null then perform needfeat_(c, tabla_funcion(d ->> 'tabla')); end if;
+  if accion = 'crearVenta' and tj(d, 'tipoEntrega') = 'Delivery' then perform needfeat_(c, 'delivery'); end if;
+  if accion in ('crear', 'actualizar', 'eliminar', 'ajustarStock', 'crearVenta', 'anularVenta', 'servicioEstado', 'crearCompra', 'recibirCompra', 'anularCompra',
+                'guardarConfig', 'usuariosCrear', 'usuariosActualizar', 'usuariosPassword', 'permisosGuardar', 'marcarAlertas') then
+    perform pg_advisory_xact_lock(hashtextextended(c.tid::text, 0));
+  end if;
+  r := case accion
+    when 'me' then me_data(c)
+    when 'cambiarPassword' then a_cambiar_password(c, d)
+    when 'listar' then a_listar(c, d)
+    when 'crear' then a_crear(c, d)
+    when 'actualizar' then a_actualizar(c, d)
+    when 'eliminar' then a_eliminar(c, d)
+    when 'ajustarStock' then a_ajustar_stock(c, d)
+    when 'crearVenta' then a_crear_venta(c, d)
+    when 'anularVenta' then a_anular_venta(c, d)
+    when 'listarVentas' then a_listar_ventas(c, d)
+    when 'detalleVenta' then a_detalle_venta(c, d)
+    when 'misServicios' then a_mis_servicios(c, d)
+    when 'servicioEstado' then a_servicio_estado(c, d)
+    when 'historialDelivery' then a_historial_delivery(c, d)
+    when 'marcarAlertas' then a_marcar_alertas(c, d)
+    when 'kpi' then a_kpi(c, d)
+    when 'subirArchivo' then a_subir_archivo(c, d)
+    when 'guardarConfig' then a_guardar_config(c, d)
+    when 'usuariosCrear' then a_usuarios_crear(c, d)
+    when 'usuariosActualizar' then a_usuarios_actualizar(c, d)
+    when 'usuariosPassword' then a_usuarios_password(c, d)
+    when 'permisosGuardar' then a_permisos_guardar(c, d)
+    when 'exportar' then a_exportar(c, d)
+    when 'crearCompra' then a_crear_compra(c, d)
+    when 'recibirCompra' then a_recibir_compra(c, d)
+    when 'anularCompra' then a_anular_compra(c, d)
+    when 'listarCompras' then a_listar_compras(c, d)
+    when 'ubicacion' then a_ubicacion(c, d)
+    when 'mapaVivo' then a_mapa_vivo(c, d)
+    when 'suscripcion' then a_suscripcion(c, d)
+    else null end;
+  return jsonb_build_object('ok', true, 'data', r);
+exception
+  when sqlstate 'AP001' then
+    get stacked diagnostics msg = message_text, det = pg_exception_detail, hint = pg_exception_hint;
+    return jsonb_build_object('ok', false, 'error', msg, 'code', coalesce(det, ''), 'licencia', case when det = 'LICENSE' then hint::jsonb else null end);
+  when others then
+    raise warning 'api(%) fallo: % %', accion, sqlstate, sqlerrm;
+    return jsonb_build_object('ok', false, 'error', case when current_setting('app.debug', true) = 'on' then 'INTERNO: ' || sqlerrm else 'Error interno del servidor. Intenta de nuevo.' end, 'code', '');
+end $$;
+
+-- ---------- Permisos de ejecución: desde internet solo se puede llamar a api() ----------
+revoke execute on all functions in schema public from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke execute on all functions in schema public from anon;
+    grant execute on function api(text, jsonb, text) to anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke execute on all functions in schema public from authenticated;
+    grant execute on function api(text, jsonb, text) to authenticated;
+  end if;
+end $$;
+
+-- ---------- Almacenamiento de imágenes/PDF (solo en Supabase) ----------
+create or replace function puede_subir(p_name text) returns boolean language plpgsql security definer set search_path = public, pg_temp as $$
+declare ok boolean;
+begin
+  update subidas set usado = true where path = p_name and not usado and expira > now() returning true into ok;
+  return coalesce(ok, false);
+end $$;
+revoke execute on function puede_subir(text) from public;
+
+do $$ begin
+  if exists (select 1 from information_schema.schemata where schema_name = 'storage') then
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    values ('archivos', 'archivos', true, 6291456, array['image/png','image/jpeg','image/webp','image/gif','application/pdf'])
+    on conflict (id) do nothing;
+    execute 'grant execute on function public.puede_subir(text) to anon, authenticated';
+    execute 'drop policy if exists "subir_con_permiso" on storage.objects';
+    execute 'create policy "subir_con_permiso" on storage.objects for insert to anon, authenticated with check (bucket_id = ''archivos'' and public.puede_subir(name))';
+  end if;
 end $$;

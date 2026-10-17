@@ -179,3 +179,6 @@ Funciones: `compras` (compras y proveedores), `delivery`, `mapa` (requiere deliv
 Ajuste para un cliente puntual en la columna **Funciones** de su fila: `+delivery,+mapa` agrega, `-kpi` quita. La columna **Max_Usuarios** pisa el límite (0 = ilimitados).
 
 Para activarlo: pega el nuevo `licencias/Licencias.gs` en tu hoja de licencias y ejecuta `instalar` (agrega las columnas Funciones y Max_Usuarios sin tocar los datos). Luego actualiza el sistema de cada cliente con el nuevo `TODO_EN_UN_ARCHIVO.gs`.
+
+## Versión Supabase (multi-negocio, registro propio, 15 días de prueba)
+Segundo motor opcional para la misma app. Guía completa en [`supabase/LEEME.md`](supabase/LEEME.md). Probado con `npm run test:supabase` y `BACKEND=pg node tools/test-backend.js`.

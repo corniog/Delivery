@@ -20,7 +20,8 @@ q = lambda s: '"' + s.replace('"', '""') + '"'
 lit = lambda v: "null" if v is None else ("true" if v is True else "false" if v is False else str(v) if isinstance(v, (int, float)) else "'" + str(v).replace("'", "''") + "'")
 
 out = ["-- GENERADO por tools/generar_supabase.py. No lo edites a mano.", "-- Esquema multi-negocio: cada tabla lleva tenant_id (el negocio dueño de la fila).", ""]
-out.append("""create extension if not exists pgcrypto;
+out.append("""create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists negocios (
   id uuid primary key default gen_random_uuid(),

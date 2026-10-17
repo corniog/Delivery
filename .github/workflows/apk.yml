@@ -84,6 +84,8 @@ jobs:
           npm run build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_KEY: ${{ vars.VITE_SUPABASE_KEY }}
       - name: Crear proyecto Android
         working-directory: web
         run: |

@@ -1,7 +1,8 @@
 -- GENERADO por tools/generar_supabase.py. No lo edites a mano.
 -- Esquema multi-negocio: cada tabla lleva tenant_id (el negocio dueño de la fila).
 
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists negocios (
   id uuid primary key default gen_random_uuid(),
