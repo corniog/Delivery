@@ -54,10 +54,10 @@ export default function Login() {
             <label className="f">Clave pública (anon / publishable)<input className="input" value={sbf.key} onChange={(e) => setSbf({ ...sbf, key: e.target.value })} /></label>
             <button className="btn">Guardar</button>
           </form>)}
-        {cfg && !sb && (
+        {cfg && (
           <form className="stack" onSubmit={(e) => { e.preventDefault(); setApiUrl(url); setSupabase('', ''); window.location.reload(); }}>
-            <label className="f">URL del servidor (Apps Script)<input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" /></label>
-            <button className="btn">Guardar URL</button>
+            <label className="f">URL de Apps Script (negocios con Google Sheets)<input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" /></label>
+            <button className="btn">{sb ? 'Volver a Apps Script' : 'Guardar URL'}</button>
           </form>)}
       </div>
     </div>
