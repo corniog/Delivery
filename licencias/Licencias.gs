@@ -64,7 +64,7 @@ function nuevaLicencia() {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA);
   if (!sh) throw new Error('Ejecuta primero "instalar".');
   const clave = 'LIC-' + Utilities.getUuid().replace(/-/g, '').slice(0, 20).toUpperCase();
-  sh.appendRow([clave, '', 'PROFESIONAL', '', '56968005177', true, '', '', '', '']);
+  sh.appendRow([clave, '', 'PROFESIONAL', '', 'XXXXXXXXXXX', true, '', '', '', '']);
   Logger.log('Clave nueva: ' + clave + '  (completa Cliente, Plan y Vencimiento en la hoja)');
 }
 
