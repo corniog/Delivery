@@ -86,6 +86,47 @@ caido = true; blocked(cli.call('listar', { tabla: 'Productos' }, T), 'error');
 caido = false; fresco(); lic.sheets.Licencias.data.splice(1, 1);
 blocked(cli.call('listar', { tabla: 'Productos' }, T), 'error');
 
+
+// Funciones por plan
+fresco(); lic.sheets.Licencias.data.push(['LIC-X', '', 'x', '', '', true, '', '', '', '']);  // fila de relleno para no tocar la 1
+const fila1 = () => lic.sheets.Licencias.data[1];
+fila1()[0] = KEY; fila1()[5] = true; fila1()[2] = 'ESENCIAL'; fila1()[3] = dayStr(30);
+fila1()[8] = ''; fila1()[9] = '';
+fresco();
+const e1 = ok(cli.call('me', {}, T));
+assert.deepStrictEqual(e1.funciones.slice().sort(), ['comanda', 'conocimiento', 'reportes']);
+assert.strictEqual(e1.maxUsuarios, 3);
+const noPlan = (r) => { if (r.code !== 'PLAN') console.log('RESP', JSON.stringify(r)); assert.strictEqual(r.ok, false); assert.strictEqual(r.code, 'PLAN'); };
+noPlan(cli.call('mapaVivo', {}, T));
+noPlan(cli.call('listarCompras', {}, T));
+noPlan(cli.call('kpi', {}, T));
+noPlan(cli.call('listar', { tabla: 'Deliverys' }, T));
+noPlan(cli.call('listar', { tabla: 'Proveedores' }, T));
+noPlan(cli.call('crearVenta', { tipoEntrega: 'Delivery', items: [] }, T));
+ok(cli.call('listar', { tabla: 'Productos' }, T));
+// Ajuste puntual: Esencial + mapa (el mapa exige delivery) + sin comanda
+fila1()[8] = '+mapa, -comanda'; fresco();
+let e2 = ok(cli.call('me', {}, T));
+assert(!e2.funciones.includes('mapa'), 'mapa sin delivery no se activa');
+fila1()[8] = '+delivery,+mapa,-comanda'; fresco();
+e2 = ok(cli.call('me', {}, T));
+assert(e2.funciones.includes('mapa') && e2.funciones.includes('delivery') && !e2.funciones.includes('comanda'));
+ok(cli.call('listar', { tabla: 'Deliverys' }, T));
+// Profesional / Premium / plan antiguo
+fila1()[8] = ''; fila1()[2] = 'Profesional'; fresco();
+assert.strictEqual(ok(cli.call('me', {}, T)).funciones.length, 7);
+assert.strictEqual(ok(cli.call('me', {}, T)).maxUsuarios, 8);
+fila1()[2] = 'PREMIUM'; fresco(); assert.strictEqual(ok(cli.call('me', {}, T)).maxUsuarios, 0);
+fila1()[2] = 'MENSUAL'; fresco(); assert.strictEqual(ok(cli.call('me', {}, T)).funciones.length, 7);
+// Límite de usuarios
+fila1()[2] = 'ESENCIAL'; fila1()[9] = 2; fresco();
+const crearU = (n) => cli.call('usuariosCrear', { Email: n + '@t.com', Nombre: n, ID_Rol: 'R02', password: 'Clave12345' }, T);
+ok(crearU('u1'));                       // master + u1 = 2 activos
+noPlan(crearU('u2'));
+fila1()[9] = ''; fresco();               // límite del plan (3)
+ok(crearU('u2'));
+noPlan(crearU('u3'));
+
 // Sin LICENCIA_URL (pruebas propias): nunca se bloquea
 const libre = createRuntime({ admin: { email: 'a@test.com', password: 'Clave12345' } }); libre.install();
 const tl = ok(libre.call('login', { email: 'a@test.com', password: 'Clave12345' })).token;

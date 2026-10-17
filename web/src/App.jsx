@@ -18,23 +18,23 @@ const NAV = [
   { to: '/inventario', label: 'Inventario', icon: 'box', show: (c) => c('Inventario', 'Ver') },
   { to: '/categorias', label: 'Categorías', icon: 'tag', show: (c) => c('Categorias', 'Ver') },
   { to: '/clientes', label: 'Clientes', icon: 'users', show: (c) => c('Clientes', 'Ver') },
-  { to: '/proveedores', label: 'Proveedores', icon: 'store', show: (c) => c('Proveedores', 'Ver') },
-  { to: '/compras', label: 'Compras', icon: 'bag', show: (c, d) => c('Proveedores', 'Ver') && !d },
-  { to: '/delivery', label: 'Delivery', icon: 'truck', show: (c) => c('Delivery', 'Ver') },
+  { to: '/proveedores', label: 'Proveedores', icon: 'store', show: (c, d, f) => c('Proveedores', 'Ver') && f('compras') },
+  { to: '/compras', label: 'Compras', icon: 'bag', show: (c, d, f) => c('Proveedores', 'Ver') && !d && f('compras') },
+  { to: '/delivery', label: 'Delivery', icon: 'truck', show: (c, d, f) => c('Delivery', 'Ver') && f('delivery') },
   { to: '/historial', label: 'Historial', icon: 'clock', show: (c, d) => c('Historial', 'Ver') && !d },
-  { to: '/conocimiento', label: 'Conocimiento', icon: 'book', show: (c) => c('Conocimiento', 'Ver') },
-  { to: '/kpi', label: 'KPI', icon: 'chart', show: (c) => c('KPI', 'Ver') },
-  { to: '/reportes', label: 'Reportes', icon: 'file', show: (c) => c('Reportes', 'Exportar') },
+  { to: '/conocimiento', label: 'Conocimiento', icon: 'book', show: (c, d, f) => c('Conocimiento', 'Ver') && f('conocimiento') },
+  { to: '/kpi', label: 'KPI', icon: 'chart', show: (c, d, f) => c('KPI', 'Ver') && f('kpi') },
+  { to: '/reportes', label: 'Reportes', icon: 'file', show: (c, d, f) => c('Reportes', 'Exportar') && f('reportes') },
   { to: '/usuarios', label: 'Usuarios', icon: 'shield', show: (c) => c('Usuarios', 'Ver') },
   { to: '/configuracion', label: 'Configuración', icon: 'gear', show: (c) => c('Configuracion', 'Ver') },
   { to: '/cuenta', label: 'Mi cuenta', icon: 'user', show: () => true }
 ];
 
 function Shell() {
-  const { user, can, isDelivery, brand, logout } = useAuth();
+  const { user, can, feat, isDelivery, brand, logout } = useAuth();
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
-  const items = NAV.filter((n) => n.show(can, isDelivery));
+  const items = NAV.filter((n) => n.show(can, isDelivery, feat));
   const bottom = items.filter((n) => ['/', '/vender', '/inventario', '/delivery'].includes(n.to)).slice(0, 4);
   const Link = ({ n, onClick }) => <NavLink to={n.to} end={n.end} onClick={onClick}><Icon n={n.icon} />{n.label}</NavLink>;
   return (
@@ -52,13 +52,13 @@ function Shell() {
           <Route path="/inventario" element={<Guard ok={can('Inventario', 'Ver')}><Productos /></Guard>} />
           <Route path="/categorias" element={<Guard ok={can('Categorias', 'Ver')}><Categorias /></Guard>} />
           <Route path="/clientes" element={<Guard ok={can('Clientes', 'Ver')}><Clientes /></Guard>} />
-          <Route path="/proveedores" element={<Guard ok={can('Proveedores', 'Ver')}><Proveedores /></Guard>} />
-          <Route path="/compras" element={<Guard ok={can('Proveedores', 'Ver') && !isDelivery}><Compras /></Guard>} />
-          <Route path="/delivery" element={<Guard ok={can('Delivery', 'Ver')}><Delivery /></Guard>} />
+          <Route path="/proveedores" element={<Guard ok={can('Proveedores', 'Ver') && feat('compras')}><Proveedores /></Guard>} />
+          <Route path="/compras" element={<Guard ok={can('Proveedores', 'Ver') && !isDelivery && feat('compras')}><Compras /></Guard>} />
+          <Route path="/delivery" element={<Guard ok={can('Delivery', 'Ver') && feat('delivery')}><Delivery /></Guard>} />
           <Route path="/historial" element={<Guard ok={can('Historial', 'Ver') && !isDelivery}><Historial /></Guard>} />
-          <Route path="/conocimiento" element={<Guard ok={can('Conocimiento', 'Ver')}><Conocimiento /></Guard>} />
-          <Route path="/kpi" element={<Guard ok={can('KPI', 'Ver')}><Kpi /></Guard>} />
-          <Route path="/reportes" element={<Guard ok={can('Reportes', 'Exportar')}><Reportes /></Guard>} />
+          <Route path="/conocimiento" element={<Guard ok={can('Conocimiento', 'Ver') && feat('conocimiento')}><Conocimiento /></Guard>} />
+          <Route path="/kpi" element={<Guard ok={can('KPI', 'Ver') && feat('kpi')}><Kpi /></Guard>} />
+          <Route path="/reportes" element={<Guard ok={can('Reportes', 'Exportar') && feat('reportes')}><Reportes /></Guard>} />
           <Route path="/usuarios" element={<Guard ok={can('Usuarios', 'Ver')}><Usuarios /></Guard>} />
           <Route path="/configuracion" element={<Guard ok={can('Configuracion', 'Ver')}><Configuracion /></Guard>} />
           <Route path="/cuenta" element={<Cuenta />} />

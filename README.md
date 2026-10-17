@@ -162,3 +162,20 @@ Al confirmar una venta se puede imprimir, además del comprobante (ticket/boleta
 - Para que salga sola, sin diálogo, en una impresora térmica de red (ESC/POS) se necesita una integración adicional.
 
 Tras actualizar: pegar `TODO_EN_UN_ARCHIVO.gs`, ejecutar `actualizar`, publicar nueva versión y volver a poner `LICENCIA_URL` / `LICENCIA_ID`.
+
+## Funciones por plan (Esencial / Profesional / Premium)
+
+Todo el sistema viene integrado, pero **cada cliente solo tiene activo lo que su licencia permite**. Se controla desde tu hoja privada de licencias, no desde el sistema del cliente (así no pueden activarlo ellos). Se aplica en el servidor y además se oculta en pantalla.
+
+Funciones: `compras` (compras y proveedores), `delivery`, `mapa` (requiere delivery), `kpi`, `comanda`, `reportes`, `conocimiento`.
+
+| Plan (columna *Plan*) | Funciones | Usuarios |
+|---|---|---|
+| ESENCIAL | comanda, reportes, conocimiento | 3 |
+| PROFESIONAL | todas | 8 |
+| PREMIUM | todas | ilimitados |
+| otro (ej. MENSUAL) | todas | ilimitados |
+
+Ajuste para un cliente puntual en la columna **Funciones** de su fila: `+delivery,+mapa` agrega, `-kpi` quita. La columna **Max_Usuarios** pisa el límite (0 = ilimitados).
+
+Para activarlo: pega el nuevo `licencias/Licencias.gs` en tu hoja de licencias y ejecuta `instalar` (agrega las columnas Funciones y Max_Usuarios sin tocar los datos). Luego actualiza el sistema de cada cliente con el nuevo `TODO_EN_UN_ARCHIVO.gs`.

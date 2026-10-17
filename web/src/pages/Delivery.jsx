@@ -9,7 +9,7 @@ const estadoCls = { Asignado: 'warn', Aceptado: '', 'En camino': '', Finalizado:
 const mapsLink = (addr) => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr || '');
 
 export default function Delivery() {
-  const { can, isDelivery } = useAuth();
+  const { can, feat, isDelivery } = useAuth();
   const [tab, setTab] = useState('servicios');
   return (
     <div className="stack">
@@ -17,7 +17,7 @@ export default function Delivery() {
       <div className="tabs">
         <button className={tab === 'servicios' ? 'on' : ''} onClick={() => setTab('servicios')}>{isDelivery ? 'Pendientes' : 'Servicios activos'}</button>
         {!isDelivery && can('Delivery', 'Ver') && <button className={tab === 'rep' ? 'on' : ''} onClick={() => setTab('rep')}>Repartidores</button>}
-        {!isDelivery && can('Delivery', 'Ver') && <button className={tab === 'mapa' ? 'on' : ''} onClick={() => setTab('mapa')}>Mapa en vivo</button>}
+        {!isDelivery && can('Delivery', 'Ver') && feat('mapa') && <button className={tab === 'mapa' ? 'on' : ''} onClick={() => setTab('mapa')}>Mapa en vivo</button>}
         <button className={tab === 'hist' ? 'on' : ''} onClick={() => setTab('hist')}>Historial</button>
       </div>
       {isDelivery && <ShareLocation />}

@@ -8,7 +8,7 @@ export function AuthProvider({ children }) {
   const [state, setState] = useState({ ready: false, user: null, perms: {}, config: {}, licencia: null, brand: { NOMBRE_NEGOCIO: 'Mi Negocio', LOGO: '' } });
 
   const applyMe = useCallback((me) => {
-    setState({ ready: true, user: me.user, perms: me.perms, config: me.config, brand: { NOMBRE_NEGOCIO: me.config.NOMBRE_NEGOCIO || 'Mi Negocio', LOGO: me.config.LOGO || '' } });
+    setState({ ready: true, user: me.user, perms: me.perms, config: me.config, funciones: me.funciones || null, maxUsuarios: me.maxUsuarios || 0, brand: { NOMBRE_NEGOCIO: me.config.NOMBRE_NEGOCIO || 'Mi Negocio', LOGO: me.config.LOGO || '' } });
   }, []);
 
   const loadPublic = useCallback(async () => {
@@ -63,8 +63,9 @@ export function AuthProvider({ children }) {
     await loadPublic();
     return true;
   };
+  const feat = (f) => !state.funciones || state.funciones.indexOf(f) >= 0;   // null = todas
   const can = (mod, act = 'Ver') => !!(state.perms[mod] && state.perms[mod][act]);
   const isDelivery = !!(state.user && state.user.ID_Delivery);
 
-  return <Ctx.Provider value={{ ...state, login, logout, refresh, recheck, can, isDelivery }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ...state, login, logout, refresh, recheck, can, feat, isDelivery }}>{children}</Ctx.Provider>;
 }

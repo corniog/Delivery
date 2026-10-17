@@ -36,7 +36,7 @@ export function Comanda({ data }) {
 
 // Cuerpo común de los modales de venta: pestañas Comprobante / Comanda y botón Imprimir de la pestaña activa.
 export function Comprobantes({ data, extra, onClose, inicial }) {
-  const { config } = useAuth();
+  const { feat } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState(inicial || 'venta');
   const nombre = (tab === 'venta' ? 'Venta ' : 'Comanda ') + data.venta.ID_Venta;
@@ -44,7 +44,7 @@ export function Comprobantes({ data, extra, onClose, inicial }) {
     <>
       <div className="row no-print" style={{ marginBottom: 8 }}>
         <button className={'btn' + (tab === 'venta' ? ' primary' : '')} onClick={() => setTab('venta')}>Comprobante</button>
-        <button className={'btn' + (tab === 'comanda' ? ' primary' : '')} onClick={() => setTab('comanda')}>Comanda cocina</button>
+        {feat('comanda') && <button className={'btn' + (tab === 'comanda' ? ' primary' : '')} onClick={() => setTab('comanda')}>Comanda cocina</button>}
       </div>
       {tab === 'venta' ? <Ticket data={data} /> : <Comanda data={data} />}
       {tab === 'comanda' && <p className="muted small no-print">Para la cocina: en el diálogo de impresión elige la impresora de cocina.</p>}

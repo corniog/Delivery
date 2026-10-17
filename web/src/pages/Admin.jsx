@@ -43,7 +43,7 @@ const CFG = [
   ['TARIFA_KM_DELIVERY', 'Tarifa por km de delivery'], ['ORIGEN_LATLONG', 'Coordenadas del local (lat,long)']
 ];
 export function Configuracion() {
-  const { config, refresh, can, user } = useAuth();
+  const { config, refresh, can, feat, user } = useAuth();
   const toast = useToast();
   const [v, setV] = useState({ ...config });
   const [busy, setBusy] = useState(false);
@@ -74,12 +74,12 @@ export function Configuracion() {
             <select className="input" disabled={!edit} value={v.FORMATO_DOC_DEFECTO || 'Termica 80mm'} onChange={(e) => setV({ ...v, FORMATO_DOC_DEFECTO: e.target.value })}>
               {['Termica 58mm', 'Termica 80mm', 'A4 Carta'].map((o) => <option key={o}>{o}</option>)}</select></label>
         </div>
-        <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.COMANDA_AUTO ?? false)} onChange={(e) => setV({ ...v, COMANDA_AUTO: e.target.checked })} />Al vender, abrir primero la comanda de cocina</label>
+        {feat('comanda') && <><label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.COMANDA_AUTO ?? false)} onChange={(e) => setV({ ...v, COMANDA_AUTO: e.target.checked })} />Al vender, abrir primero la comanda de cocina</label>
         <label className="f">Formato de la comanda
           <select className="input" disabled={!edit} value={v.FORMATO_COMANDA || 'Termica 80mm'} onChange={(e) => setV({ ...v, FORMATO_COMANDA: e.target.value })}>
             <option>Termica 58mm</option><option>Termica 80mm</option><option>A4 Carta</option>
           </select>
-        </label>
+        </label></>}
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.ALERTA_STOCK_ACTIVA ?? true)} onChange={(e) => setV({ ...v, ALERTA_STOCK_ACTIVA: e.target.checked })} />Generar alertas de stock mínimo</label>
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.PERMITIR_STOCK_NEGATIVO ?? false)} onChange={(e) => setV({ ...v, PERMITIR_STOCK_NEGATIVO: e.target.checked })} />Permitir vender sin stock (queda negativo)</label>
         {edit && <div><button className="btn primary" disabled={busy} onClick={() => save(Object.fromEntries([...CFG.map(([k]) => k), 'FORMATO_DOC_DEFECTO', 'FORMATO_COMANDA', 'COMANDA_AUTO', 'ALERTA_STOCK_ACTIVA', 'PERMITIR_STOCK_NEGATIVO'].map((k) => [k, v[k] ?? ''])))}>Guardar cambios</button></div>}
@@ -91,7 +91,7 @@ export function Configuracion() {
 
 /* ---------- Usuarios, roles y permisos ---------- */
 export function Usuarios() {
-  const { can, user: me, isDelivery } = useAuth();
+  const { can, user: me, isDelivery, maxUsuarios } = useAuth();
   const toast = useToast();
   const users = useTable('Usuarios');
   const [roles, setRoles] = useState([]);
@@ -121,6 +121,7 @@ export function Usuarios() {
       <div className="pagehead"><h1>Usuarios y permisos</h1>
         {can('Usuarios', 'Crear') && tab === 'usuarios' && <button className="btn primary" onClick={() => setForm({ Email: '', Nombre: '', Telefono: '', ID_Rol: 'R02', ID_Delivery: '', password: '', Activo: true })}><Icon n="plus" />Nuevo usuario</button>}
       </div>
+      {maxUsuarios > 0 && users.rows && <p className="muted small">Usuarios activos: {users.rows.filter((u) => String(u.Activo).toUpperCase() !== 'FALSE').length} de {maxUsuarios} incluidos en tu plan.</p>}
       <div className="tabs"><button className={tab === 'usuarios' ? 'on' : ''} onClick={() => setTab('usuarios')}>Usuarios</button>{isMaster && <button className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')}>Roles y permisos</button>}</div>
       {users.err && <div className="alert">{users.err}</div>}
       {tab === 'usuarios' && (

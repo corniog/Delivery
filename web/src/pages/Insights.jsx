@@ -8,14 +8,14 @@ import { DeliveryHistory } from './Delivery.jsx';
 import { SubscriptionBanner } from '../Suscripcion.jsx';
 
 export function Dashboard() {
-  const { user, can, brand } = useAuth();
+  const { user, can, feat, brand } = useAuth();
   const { money } = useFmt();
   const toast = useToast();
   const [alerts, setAlerts] = useState([]);
   const [k, setK] = useState(null);
   const load = useCallback(async () => {
     try { setAlerts((await listar('Alertas')).filter((a) => String(a.Leida).toUpperCase() !== 'TRUE').sort((a, b) => (a.Fecha < b.Fecha ? 1 : -1))); } catch { /* sin permiso */ }
-    if (can('KPI', 'Ver')) { try { setK(await call('kpi', { desde: today(), hasta: today() })); } catch { /* ignorar */ } }
+    if (can('KPI', 'Ver') && feat('kpi')) { try { setK(await call('kpi', { desde: today(), hasta: today() })); } catch { /* ignorar */ } }
   }, [can]);
   useEffect(() => { load(); const t = setInterval(load, 45000); return () => clearInterval(t); }, [load]);
   const read = async (ids, todas) => { try { await call('marcarAlertas', { ids, todas }); load(); } catch (e) { toast(e.message, true); } };
@@ -42,7 +42,7 @@ export function Dashboard() {
       <div className="grid cols">
         {can('Ventas', 'Crear') && <Link className="card stat" to="/vender"><Icon n="cart" /><b>Vender</b></Link>}
         {can('Inventario', 'Ver') && <Link className="card stat" to="/inventario"><Icon n="box" /><b>Inventario</b></Link>}
-        {can('Delivery', 'Ver') && <Link className="card stat" to="/delivery"><Icon n="truck" /><b>Delivery</b></Link>}
+        {can('Delivery', 'Ver') && feat('delivery') && <Link className="card stat" to="/delivery"><Icon n="truck" /><b>Delivery</b></Link>}
         {can('Historial', 'Ver') && <Link className="card stat" to="/historial"><Icon n="clock" /><b>Historial</b></Link>}
       </div>
     </div>
@@ -57,7 +57,7 @@ export function Historial() {
       <div className="pagehead"><h1>Historial</h1></div>
       <div className="tabs">
         <button className={tab === 'ventas' ? 'on' : ''} onClick={() => setTab('ventas')}>Ventas</button>
-        {can('Delivery', 'Ver') && <button className={tab === 'del' ? 'on' : ''} onClick={() => setTab('del')}>Delivery</button>}
+        {can('Delivery', 'Ver') && feat('delivery') && <button className={tab === 'del' ? 'on' : ''} onClick={() => setTab('del')}>Delivery</button>}
         {can('Inventario', 'Ver') && <button className={tab === 'mov' ? 'on' : ''} onClick={() => setTab('mov')}>Movimientos de stock</button>}
       </div>
       {tab === 'ventas' && <HistVentas />}
@@ -182,7 +182,9 @@ const HOJAS = [['Productos', 'Inventario (productos)'], ['Categorias', 'Categor�
   ['Clientes', 'Clientes'], ['Proveedores', 'Proveedores'], ['Deliverys', 'Repartidores'], ['Servicios_Delivery', 'Servicios de delivery']];
 export function Reportes() {
   const toast = useToast();
-  const [sel, setSel] = useState(['Productos', 'Ventas', 'Detalle_Venta', 'Servicios_Delivery']);
+  const { feat } = useAuth();
+  const hojas = HOJAS.filter(([k]) => feat('delivery') || !['Deliverys', 'Servicios_Delivery'].includes(k)).filter(([k]) => feat('compras') || k !== 'Proveedores');
+  const [sel, setSel] = useState(['Productos', 'Ventas', 'Detalle_Venta']);
   const [busy, setBusy] = useState(false);
   const go = async () => {
     setBusy(true);
@@ -203,7 +205,7 @@ export function Reportes() {
       <div className="card stack">
         <h2>Descargar Excel</h2>
         <p className="muted">Elige qué hojas incluir. Los usuarios y permisos nunca se exportan.</p>
-        <div className="formgrid">{HOJAS.map(([k, l]) => (
+        <div className="formgrid">{hojas.map(([k, l]) => (
           <label key={k} className="chk"><input type="checkbox" checked={sel.includes(k)} onChange={(e) => setSel(e.target.checked ? [...sel, k] : sel.filter((x) => x !== k))} />{l}</label>))}</div>
         <div><button className="btn primary" disabled={busy || !sel.length} onClick={go}>{busy ? 'Generando…' : 'Descargar Excel'}</button></div>
       </div>

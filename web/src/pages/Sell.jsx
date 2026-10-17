@@ -5,7 +5,7 @@ import { Modal, Icon, Scanner, useToast, useFmt } from '../ui.jsx';
 import { Comprobantes } from '../Comanda.jsx';
 
 export default function Sell() {
-  const { config } = useAuth();
+  const { config, feat } = useAuth();
   const { money } = useFmt();
   const toast = useToast();
   const [cats, setCats] = useState([]);
@@ -113,14 +113,14 @@ export default function Sell() {
         onDone={(r) => { setCheckout(false); setDone(r); setCart({}); load(); }} />}
       {done && (
         <Modal title="Venta registrada" onClose={() => setDone(null)}>
-          <Comprobantes data={done} onClose={() => setDone(null)} inicial={String(config.COMANDA_AUTO).toUpperCase() === 'TRUE' ? 'comanda' : 'venta'} />
+          <Comprobantes data={done} onClose={() => setDone(null)} inicial={feat('comanda') && String(config.COMANDA_AUTO).toUpperCase() === 'TRUE' ? 'comanda' : 'venta'} />
         </Modal>)}
     </div>
   );
 }
 
 function Checkout({ items, subtotal, setQty, onClose, onDone }) {
-  const { config, can } = useAuth();
+  const { config, can, feat } = useAuth();
   const { money } = useFmt();
   const toast = useToast();
   const [clientes, setClientes] = useState([]);
@@ -196,7 +196,7 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
                 <button onClick={() => setQty(p.ID_Producto, p.qty + 1)}>+</button>
               </div>
               <b style={{ minWidth: 80, textAlign: 'right' }}>{money(p.qty * Number(p.Precio_Venta))}</b>
-              {String(p.Va_A_Cocina).toUpperCase() !== 'FALSE' && (
+              {feat('comanda') && String(p.Va_A_Cocina).toUpperCase() !== 'FALSE' && (
                 <input className="input" style={{ flexBasis: '100%' }} placeholder="Nota para cocina (ej. sin cebolla)" maxLength={120}
                   value={notas[p.ID_Producto] || ''} onChange={(e) => setNotas({ ...notas, [p.ID_Producto]: e.target.value })} />)}
             </div>))}
@@ -204,12 +204,12 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
         </div>
 
         <div className="formgrid">
-          <label className="f">Referencia (mesa / nombre)
+          {feat('comanda') && <label className="f">Referencia (mesa / nombre)
             <input className="input" maxLength={60} placeholder="Mesa 4, Juan…" value={f.referencia} onChange={(e) => set('referencia', e.target.value)} />
-          </label>
-          <label className="f">Nota general para cocina
+          </label>}
+          {feat('comanda') && <label className="f">Nota general para cocina
             <input className="input" maxLength={200} value={f.notaCocina} onChange={(e) => set('notaCocina', e.target.value)} />
-          </label>
+          </label>}
           <label className="f full">Cliente
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <select className="input" value={f.ID_Cliente} onChange={(e) => set('ID_Cliente', e.target.value)}>
@@ -221,7 +221,7 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
           </label>
           <label className="f">Entrega
             <select className="input" value={f.tipoEntrega} onChange={(e) => set('tipoEntrega', e.target.value)}>
-              <option>Retiro en local</option><option>Para servir</option>{can('Delivery', 'Crear') && <option>Delivery</option>}
+              <option>Retiro en local</option><option>Para servir</option>{can('Delivery', 'Crear') && feat('delivery') && <option>Delivery</option>}
             </select>
           </label>
           <label className="f">Descuento<input className="input" type="number" min="0" inputMode="decimal" value={f.descuento} onChange={(e) => set('descuento', e.target.value)} /></label>

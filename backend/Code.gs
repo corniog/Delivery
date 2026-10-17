@@ -44,6 +44,7 @@ function route_(req) {
   const ctx = authenticate_(req.token);
   const fn = ACTIONS[a];
   if (!fn) fail_('Acción desconocida: ' + a);
+  checkFunciones_(a, d);
   return fn(ctx, d);
 }
 
@@ -302,7 +303,8 @@ function isDelivery_(ctx) { return !!ctx.user.ID_Delivery; }
 
 function meData_(ctx) {
   const c = config_();
-  return { user: ctx.user, perms: ctx.perms, config: c };
+  const l = licencia_();
+  return { user: ctx.user, perms: ctx.perms, config: c, funciones: l.funciones, maxUsuarios: l.maxUsuarios };
 }
 
 function me_(ctx) { return meData_(ctx); }
@@ -721,7 +723,7 @@ function crearVenta_(ctx, d) {
     const q = num_(it.Cantidad);
     if (!(q > 0)) fail_('Cantidad inválida');
     merged[it.ID_Producto] = (merged[it.ID_Producto] || 0) + q;
-    const n = String(it.Nota || '').trim().slice(0, 120);
+    const n = feat_('comanda') ? String(it.Nota || '').trim().slice(0, 120) : '';
     if (n) notas[it.ID_Producto] = notas[it.ID_Producto] ? notas[it.ID_Producto] + ' / ' + n : n;
   });
   const lock = LockService.getScriptLock();
@@ -782,7 +784,7 @@ function crearVenta_(ctx, d) {
       Metodo_Pago: d.metodoPago || 'Efectivo', Estado_Pago: d.estadoPago || 'Pagado',
       Estado: entrega === 'Delivery' ? 'En despacho' : 'Confirmada', Tipo_Documento: tipoDoc,
       Dia_Semana: DIAS[Number(Utilities.formatDate(now, tz_(), 'u')) % 7], Usuario: ctx.user.Email,
-      Referencia: String(d.referencia || '').trim().slice(0, 60), Nota_Cocina: String(d.notaCocina || '').trim().slice(0, 200)
+      Referencia: feat_('comanda') ? String(d.referencia || '').trim().slice(0, 60) : '', Nota_Cocina: feat_('comanda') ? String(d.notaCocina || '').trim().slice(0, 200) : ''
     };
     insert_('Ventas', venta);
     detalle.forEach(function (r) { insert_('Detalle_Venta', r); });
@@ -1076,6 +1078,8 @@ function usuariosCrear_(ctx, d) {
   if (!findBy_('Roles', 'ID_Rol', d.ID_Rol)) fail_('Rol inválido');
   if (d.ID_Rol === MASTER_ROLE && !isMaster_(ctx)) fail_('Solo un Master puede crear otro Master', 'PERM');
   if (readAll_('Usuarios').some(function (u) { return String(u.Email).trim().toLowerCase() === email; })) fail_('Ya existe un usuario con ese correo');
+  const tope = licencia_().maxUsuarios;
+  if (tope > 0 && readAll_('Usuarios').filter(function (u) { return String(u.Activo).toUpperCase() !== 'FALSE'; }).length >= tope) fail_('Tu plan permite hasta ' + tope + ' usuarios activos. Consulta a tu proveedor para ampliarlo.', 'PLAN');
   const salt = Utilities.getUuid();
   const row = {
     ID_Usuario: newId_('U'), Email: email, Nombre: d.Nombre, Telefono: d.Telefono || '', ID_Rol: d.ID_Rol,
@@ -1100,6 +1104,10 @@ function usuariosActualizar_(ctx, d) {
   }
   if (d.Activo !== undefined) {
     if (u.ID_Usuario === ctx.user.ID_Usuario && !d.Activo) fail_('No puedes deshabilitarte a ti mismo');
+    if (d.Activo && String(u.Activo).toUpperCase() === 'FALSE') {
+      const tope = licencia_().maxUsuarios;
+      if (tope > 0 && readAll_('Usuarios').filter(function (x) { return String(x.Activo).toUpperCase() !== 'FALSE'; }).length >= tope) fail_('Tu plan permite hasta ' + tope + ' usuarios activos. Consulta a tu proveedor para ampliarlo.', 'PLAN');
+    }
     patch.Activo = !!d.Activo;
   }
   update_('Usuarios', u._row, patch);
@@ -1218,10 +1226,12 @@ function licenciaRemota_() {
 
 // Devuelve el estado de la licencia: activo | por_vencer | vencido | suspendido | sin_vencimiento | error | sin_control
 function licencia_() {
-  const base = { plan: '', vencimiento: '', diasRestantes: null, whatsapp: '', bloqueada: false, estado: 'sin_control', mensaje: '' };
+  const base = { plan: '', vencimiento: '', diasRestantes: null, whatsapp: '', bloqueada: false, estado: 'sin_control', mensaje: '', funciones: null, maxUsuarios: 0 };
   if (!LICENCIA_URL) return base;
   const r = licenciaRemota_();
   base.plan = r.plan || '';
+  base.funciones = Array.isArray(r.funciones) ? r.funciones : null;   // null = todas (servidor de licencias antiguo)
+  base.maxUsuarios = Number(r.maxUsuarios) || 0;
   base.whatsapp = String(r.whatsapp || '').replace(/\D/g, '');
   if (r.error) {
     base.estado = 'error'; base.bloqueada = true;
@@ -1253,8 +1263,30 @@ function licenciaPublica_(l) {
   return { bloqueada: true, estado: l.estado, mensaje: l.mensaje, plan: l.plan, vencimiento: l.vencimiento, whatsapp: l.whatsapp };
 }
 
+// ---------- Funciones habilitadas por el plan ----------
+function funciones_() { return licencia_().funciones; }          // null = todas
+function feat_(f) { const fs = funciones_(); return !fs || fs.indexOf(f) >= 0; }
+function needFeat_(f) { if (!feat_(f)) fail_('Esta función no está incluida en tu plan. Consulta a tu proveedor para activarla.', 'PLAN'); }
+
+const ACCION_FUNCION = {
+  crearCompra: 'compras', recibirCompra: 'compras', anularCompra: 'compras', listarCompras: 'compras',
+  ubicacion: 'mapa', mapaVivo: 'mapa',
+  misServicios: 'delivery', servicioEstado: 'delivery', historialDelivery: 'delivery',
+  kpi: 'kpi', exportar: 'reportes'
+};
+const TABLA_FUNCION = {
+  Proveedores: 'compras', Visitas_Proveedor: 'compras', Compras: 'compras', Detalle_Compra: 'compras',
+  Deliverys: 'delivery', Servicios_Delivery: 'delivery', Ubicaciones_Delivery: 'delivery',
+  Categorias_Conocimiento: 'conocimiento', Conocimiento: 'conocimiento'
+};
+function checkFunciones_(a, d) {
+  if (ACCION_FUNCION[a]) needFeat_(ACCION_FUNCION[a]);
+  if (a === 'crearVenta' && d && d.tipoEntrega === 'Delivery') needFeat_('delivery');
+  if (['listar', 'crear', 'actualizar', 'eliminar'].indexOf(a) >= 0 && d && TABLA_FUNCION[d.tabla]) needFeat_(TABLA_FUNCION[d.tabla]);
+}
+
 function suscripcion_(ctx, d) {
   if (!isMaster_(ctx)) fail_('Solo el Master puede ver la suscripción', 'PERM');
   const l = licencia_();
-  return { plan: l.plan, whatsapp: l.whatsapp, vencimiento: l.vencimiento, diasRestantes: l.diasRestantes, estado: l.estado };
+  return { funciones: l.funciones, maxUsuarios: l.maxUsuarios, plan: l.plan, whatsapp: l.whatsapp, vencimiento: l.vencimiento, diasRestantes: l.diasRestantes, estado: l.estado };
 }
