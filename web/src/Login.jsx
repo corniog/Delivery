@@ -55,7 +55,7 @@ export default function Login() {
             <button className="btn">Guardar</button>
           </form>)}
         {cfg && !sb && (
-          <form className="stack" onSubmit={(e) => { e.preventDefault(); setApiUrl(url); window.location.reload(); }}>
+          <form className="stack" onSubmit={(e) => { e.preventDefault(); setApiUrl(url); setSupabase('', ''); window.location.reload(); }}>
             <label className="f">URL del servidor (Apps Script)<input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" /></label>
             <button className="btn">Guardar URL</button>
           </form>)}

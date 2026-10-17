@@ -6,7 +6,8 @@ La misma app (web, PWA y APK) puede usar **dos motores**: Google Sheets + Apps S
 1. Crea un proyecto en https://supabase.com (región cercana, por ejemplo *São Paulo*). Guarda la contraseña de la base.
 2. Abre **SQL Editor → New query**, pega **todo** `supabase/TODO_SUPABASE.sql` y pulsa **Run**. Es seguro repetirlo: no borra datos.
 3. En **Project Settings → API** copia la **Project URL** y la clave **publishable** (`sb_publishable_…`) o, si tu proyecto aún usa la antigua, la **anon**. Nunca uses la clave `secret` / `service_role` en la app.
-4. En GitHub (**Settings → Secrets and variables → Actions → Variables**) crea `VITE_SUPABASE_URL` y `VITE_SUPABASE_KEY` con esos dos valores y vuelve a publicar la web (Actions → *Publicar web* → Run workflow). Para probar sin publicar: en la pantalla de acceso, *Configurar servidor* y pega ambos datos.
+4. **Probar:** abre la web, en la pantalla de acceso pulsa *Configurar servidor*, pega la URL y la clave de Supabase en el segundo formulario y guarda. Solo cambia ese navegador/dispositivo; tus negocios de Apps Script no se tocan.
+   **Dejarlo fijo en un sitio** (solo para un sitio o APK que sea 100 % Supabase): variables `VITE_SUPABASE_URL` y `VITE_SUPABASE_KEY` en GitHub (*Settings → Secrets and variables → Actions → Variables*). Si el sitio ya tiene una URL de Apps Script en `config.json`, esa tiene prioridad y las variables se ignoran.
 5. Entra a la app, pulsa **Crear mi negocio** y listo: 15 días con todas las funciones.
 
 > Si en tu proyecto la API de datos (Data API / PostgREST) está desactivada, actívala en *Project Settings → API*.

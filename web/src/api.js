@@ -30,9 +30,13 @@ export async function loadConfig() {
   } catch { /* sin config.json: se usa lo demás */ }
 }
 const envSb = { url: String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/+$/, ''), key: String(import.meta.env.VITE_SUPABASE_KEY || ''), negocio: String(import.meta.env.VITE_NEGOCIO || '').toLowerCase() };
+// Orden: 1) Supabase elegido en este dispositivo, 2) si el sitio ya trae una URL de Apps Script se usa esa (los negocios de Sheets no cambian),
+// 3) Supabase configurado en el sitio (config.json / variables VITE_*).
 export function getSupabase() {
-  const url = (store.get('sb_url') || fileSb.url || envSb.url || '').replace(/\/+$/, '');
-  const key = store.get('sb_key') || fileSb.key || envSb.key || '';
+  const su = (store.get('sb_url') || '').replace(/\/+$/, ''), sk = store.get('sb_key') || '';
+  if (su && sk) return { url: su, key: sk };
+  if (store.get('api_url') || fileUrl || DEFAULT_URL) return null;
+  const url = (fileSb.url || envSb.url || '').replace(/\/+$/, ''), key = fileSb.key || envSb.key || '';
   return url && key ? { url, key } : null;
 }
 // Las claves nuevas (sb_publishable_…) van solo en "apikey"; las antiguas (JWT "anon") también como Bearer
