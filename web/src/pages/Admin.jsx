@@ -12,6 +12,16 @@ const ACTS = ['Ver', 'Crear', 'Editar', 'Eliminar', 'Exportar'];
 const b = (v) => v === true || String(v).toUpperCase() === 'TRUE';
 
 /* ---------- Mi cuenta ---------- */
+// Borra la copia guardada de la app (caché) y la vuelve a descargar, para recibir la última versión
+async function actualizarApp() {
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations?.()) || [];
+    await Promise.all(regs.map((r) => r.unregister()));
+    if (window.caches) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+  } catch { /* seguir igual */ }
+  window.location.reload();
+}
+
 export function Cuenta() {
   const { user, logout } = useAuth();
   const toast = useToast();
@@ -25,6 +35,10 @@ export function Cuenta() {
     <div className="stack" style={{ maxWidth: 520 }}>
       <div className="pagehead"><h1>Mi cuenta</h1></div>
       <div className="card"><b>{user.Nombre}</b><div className="muted">{user.Email}</div></div>
+      <div className="card row" style={{ justifyContent: 'space-between' }}>
+        <div><b>Versión de la app</b><div className="muted small">{typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'desarrollo'}</div></div>
+        <button type="button" className="btn" onClick={actualizarApp}>Buscar actualización</button>
+      </div>
       <form className="card stack" onSubmit={go}>
         <h2>Cambiar contraseña</h2>
         <label className="f">Contraseña actual<input className="input" type="password" autoComplete="current-password" value={f.actual} onChange={(e) => setF({ ...f, actual: e.target.value })} required /></label>
