@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
-import { Modal, Icon, Scanner, useToast, useFmt, imprimir } from '../ui.jsx';
-import Ticket from '../Ticket.jsx';
+import { Modal, Icon, Scanner, useToast, useFmt } from '../ui.jsx';
+import { Comprobantes } from '../Comanda.jsx';
 
 export default function Sell() {
   const { config } = useAuth();
@@ -113,11 +113,7 @@ export default function Sell() {
         onDone={(r) => { setCheckout(false); setDone(r); setCart({}); load(); }} />}
       {done && (
         <Modal title="Venta registrada" onClose={() => setDone(null)}>
-          <Ticket data={done} />
-          <div className="row no-print" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-            <button className="btn" onClick={() => setDone(null)}>Cerrar</button>
-            <button className="btn primary" onClick={() => imprimir('Venta ' + done.venta.ID_Venta).catch((e) => toast(e.message, true))}>Imprimir</button>
-          </div>
+          <Comprobantes data={done} onClose={() => setDone(null)} inicial={String(config.COMANDA_AUTO).toUpperCase() === 'TRUE' ? 'comanda' : 'venta'} />
         </Modal>)}
     </div>
   );
@@ -132,8 +128,9 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
   const [f, setF] = useState({
     ID_Cliente: '', tipoEntrega: 'Retiro en local', descuento: '', metodoPago: 'Efectivo', estadoPago: 'Pagado',
     tipoDocumento: 'Ticket', formato: config.FORMATO_DOC_DEFECTO || 'Termica 80mm',
-    ID_Delivery: '', Direccion_Entrega: '', Distancia_Km: '', Monto_Delivery: config.TARIFA_BASE_DELIVERY || '', Notas: ''
+    ID_Delivery: '', Direccion_Entrega: '', Distancia_Km: '', Monto_Delivery: config.TARIFA_BASE_DELIVERY || '', Notas: '', referencia: '', notaCocina: ''
   });
+  const [notas, setNotas] = useState({}); // id producto -> nota para cocina
   const [newCli, setNewCli] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -178,7 +175,8 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
       const r = await call('crearVenta', {
         ID_Cliente: f.ID_Cliente, tipoEntrega: f.tipoEntrega, descuento: desc, metodoPago: f.metodoPago, estadoPago: f.estadoPago,
         tipoDocumento: f.tipoDocumento, formato: f.formato,
-        items: items.map((p) => ({ ID_Producto: p.ID_Producto, Cantidad: p.qty })),
+        referencia: f.referencia, notaCocina: f.notaCocina,
+        items: items.map((p) => ({ ID_Producto: p.ID_Producto, Cantidad: p.qty, Nota: notas[p.ID_Producto] || '' })),
         delivery: f.tipoEntrega === 'Delivery' ? { ID_Delivery: f.ID_Delivery, Direccion_Entrega: f.Direccion_Entrega, Distancia_Km: Number(f.Distancia_Km) || 0, Monto_Delivery: envio, Notas: f.Notas } : null
       });
       onDone(r);
@@ -198,11 +196,20 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
                 <button onClick={() => setQty(p.ID_Producto, p.qty + 1)}>+</button>
               </div>
               <b style={{ minWidth: 80, textAlign: 'right' }}>{money(p.qty * Number(p.Precio_Venta))}</b>
+              {String(p.Va_A_Cocina).toUpperCase() !== 'FALSE' && (
+                <input className="input" style={{ flexBasis: '100%' }} placeholder="Nota para cocina (ej. sin cebolla)" maxLength={120}
+                  value={notas[p.ID_Producto] || ''} onChange={(e) => setNotas({ ...notas, [p.ID_Producto]: e.target.value })} />)}
             </div>))}
           {!items.length && <p className="muted" style={{ padding: 8 }}>No quedan productos.</p>}
         </div>
 
         <div className="formgrid">
+          <label className="f">Referencia (mesa / nombre)
+            <input className="input" maxLength={60} placeholder="Mesa 4, Juan…" value={f.referencia} onChange={(e) => set('referencia', e.target.value)} />
+          </label>
+          <label className="f">Nota general para cocina
+            <input className="input" maxLength={200} value={f.notaCocina} onChange={(e) => set('notaCocina', e.target.value)} />
+          </label>
           <label className="f full">Cliente
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <select className="input" value={f.ID_Cliente} onChange={(e) => set('ID_Cliente', e.target.value)}>

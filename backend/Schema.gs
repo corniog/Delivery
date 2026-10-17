@@ -68,7 +68,8 @@ const SCHEMA = {
   "Stock_Minimo",
   "ID_Proveedor",
   "Activo",
-  "Fecha_Creacion"
+  "Fecha_Creacion",
+  "Va_A_Cocina"
  ],
  "Movimientos_Inventario": [
   "ID_Mov",
@@ -159,7 +160,9 @@ const SCHEMA = {
   "Estado",
   "Tipo_Documento",
   "Dia_Semana",
-  "Usuario"
+  "Usuario",
+  "Referencia",
+  "Nota_Cocina"
  ],
  "Detalle_Venta": [
   "ID_Detalle",
@@ -172,7 +175,9 @@ const SCHEMA = {
   "Costo_Unitario",
   "Descuento",
   "Subtotal",
-  "Fecha"
+  "Fecha",
+  "Nota",
+  "Va_A_Cocina"
  ],
  "Servicios_Delivery": [
   "ID_Servicio",
@@ -701,6 +706,16 @@ const SEED = {
    "FORMATO_DOC_DEFECTO",
    "Termica 80mm",
    "Termica 58mm | Termica 80mm | A4 Carta"
+  ],
+  [
+   "FORMATO_COMANDA",
+   "Termica 80mm",
+   "Formato del ticket de cocina"
+  ],
+  [
+   "COMANDA_AUTO",
+   "FALSE",
+   "TRUE = al vender se abre sola la impresión de la comanda"
   ],
   [
    "ORIGEN_LATLONG",

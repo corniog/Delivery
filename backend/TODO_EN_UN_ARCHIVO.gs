@@ -94,7 +94,8 @@ const SCHEMA = {
   "Stock_Minimo",
   "ID_Proveedor",
   "Activo",
-  "Fecha_Creacion"
+  "Fecha_Creacion",
+  "Va_A_Cocina"
  ],
  "Movimientos_Inventario": [
   "ID_Mov",
@@ -185,7 +186,9 @@ const SCHEMA = {
   "Estado",
   "Tipo_Documento",
   "Dia_Semana",
-  "Usuario"
+  "Usuario",
+  "Referencia",
+  "Nota_Cocina"
  ],
  "Detalle_Venta": [
   "ID_Detalle",
@@ -198,7 +201,9 @@ const SCHEMA = {
   "Costo_Unitario",
   "Descuento",
   "Subtotal",
-  "Fecha"
+  "Fecha",
+  "Nota",
+  "Va_A_Cocina"
  ],
  "Servicios_Delivery": [
   "ID_Servicio",
@@ -727,6 +732,16 @@ const SEED = {
    "FORMATO_DOC_DEFECTO",
    "Termica 80mm",
    "Termica 58mm | Termica 80mm | A4 Carta"
+  ],
+  [
+   "FORMATO_COMANDA",
+   "Termica 80mm",
+   "Formato del ticket de cocina"
+  ],
+  [
+   "COMANDA_AUTO",
+   "FALSE",
+   "TRUE = al vender se abre sola la impresión de la comanda"
   ],
   [
    "ORIGEN_LATLONG",
@@ -1465,10 +1480,13 @@ function crearVenta_(ctx, d) {
   const itemsIn = d.items || [];
   if (!itemsIn.length) fail_('La venta no tiene productos');
   const merged = {};
+  const notas = {};
   itemsIn.forEach(function (it) {
     const q = num_(it.Cantidad);
     if (!(q > 0)) fail_('Cantidad inválida');
     merged[it.ID_Producto] = (merged[it.ID_Producto] || 0) + q;
+    const n = String(it.Nota || '').trim().slice(0, 120);
+    if (n) notas[it.ID_Producto] = notas[it.ID_Producto] ? notas[it.ID_Producto] + ' / ' + n : n;
   });
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -1505,7 +1523,8 @@ function crearVenta_(ctx, d) {
       detalle.push({
         ID_Detalle: newId_('DV'), ID_Venta: idVenta, ID_Producto: id, Nombre_Producto: p.Nombre,
         ID_Categoria: p.ID_Categoria, Cantidad: qty, Precio_Unitario: precio, Costo_Unitario: num_(p.Precio_Compra),
-        Descuento: 0, Subtotal: sub, Fecha: fecha
+        Descuento: 0, Subtotal: sub, Fecha: fecha,
+        Nota: notas[id] || '', Va_A_Cocina: String(p.Va_A_Cocina).toUpperCase() !== 'FALSE'
       });
       const nuevo = stock - qty;
       updates.push({ p: p, nuevo: nuevo });
@@ -1526,7 +1545,8 @@ function crearVenta_(ctx, d) {
       Subtotal: subtotal, Descuento: descuento, Costo_Delivery: costoDelivery, Total: total,
       Metodo_Pago: d.metodoPago || 'Efectivo', Estado_Pago: d.estadoPago || 'Pagado',
       Estado: entrega === 'Delivery' ? 'En despacho' : 'Confirmada', Tipo_Documento: tipoDoc,
-      Dia_Semana: DIAS[Number(Utilities.formatDate(now, tz_(), 'u')) % 7], Usuario: ctx.user.Email
+      Dia_Semana: DIAS[Number(Utilities.formatDate(now, tz_(), 'u')) % 7], Usuario: ctx.user.Email,
+      Referencia: String(d.referencia || '').trim().slice(0, 60), Nota_Cocina: String(d.notaCocina || '').trim().slice(0, 200)
     };
     insert_('Ventas', venta);
     detalle.forEach(function (r) { insert_('Detalle_Venta', r); });

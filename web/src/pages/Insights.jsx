@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
-import { Icon, Modal, BarList, useFmt, useToast, fdt, today, daysAgo, Confirm, imprimir } from '../ui.jsx';
-import Ticket from '../Ticket.jsx';
+import { Icon, Modal, BarList, useFmt, useToast, fdt, today, daysAgo, Confirm } from '../ui.jsx';
+import { Comprobantes } from '../Comanda.jsx';
 import { DeliveryHistory } from './Delivery.jsx';
 import { SubscriptionBanner } from '../Suscripcion.jsx';
 
@@ -110,11 +110,7 @@ function HistVentas() {
       </div>
       {det && (
         <Modal title={'Venta ' + det.venta.ID_Venta} onClose={() => setDet(null)} wide>
-          <Ticket data={det} />
-          <div className="row no-print" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-            {can('Ventas', 'Eliminar') && det.venta.Estado !== 'Anulada' && <button className="btn danger" onClick={() => setAnular(det.venta)}>Anular venta</button>}
-            <button className="btn primary" onClick={() => imprimir('Venta ' + det.venta.ID_Venta).catch((e) => toast(e.message, true))}>Imprimir</button>
-          </div>
+          <Comprobantes data={det} extra={can('Ventas', 'Eliminar') && det.venta.Estado !== 'Anulada' && <button className="btn danger" onClick={() => setAnular(det.venta)}>Anular venta</button>} />
         </Modal>)}
       {anular && <Confirm yesText="Anular" text={`¿Anular la venta ${anular.ID_Venta}? Se devolverá el stock de los productos.`} onYes={doAnular} onNo={() => setAnular(null)} />}
     </div>

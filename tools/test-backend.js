@@ -104,6 +104,17 @@ ok(rt.call('login', { email: 'ventas@test.com', password: 'NuevaClave99' }));
   const M2 = ok(rt.call('login', { email: 'master@test.com', password: 'Clave12345' })).token;
   const vs = ok(rt.call('crearVenta', { tipoEntrega: 'Para servir', items: [{ ID_Producto: p2.ID_Producto, Cantidad: 1 }] }, M2));
   assert.strictEqual(vs.venta.Tipo_Entrega, 'Para servir');
+  // comanda: referencia, nota general y nota por producto; producto que no va a cocina
+  const bebida = ok(rt.call('crear', { tabla: 'Productos', datos: { Nombre: 'Bebida', Precio_Venta: 1000, Stock_Actual: 10, Stock_Minimo: 1, Va_A_Cocina: false } }, M2));
+  const burger = ok(rt.call('crear', { tabla: 'Productos', datos: { Nombre: 'Burger', Precio_Venta: 5000, Stock_Actual: 10, Stock_Minimo: 1 } }, M2));
+  const vc = ok(rt.call('crearVenta', { tipoEntrega: 'Para servir', referencia: 'Mesa 4', notaCocina: 'Salir juntos',
+    items: [{ ID_Producto: burger.ID_Producto, Cantidad: 2, Nota: 'sin cebolla' }, { ID_Producto: burger.ID_Producto, Cantidad: 1, Nota: 'bien cocida' }, { ID_Producto: bebida.ID_Producto, Cantidad: 2 }] }, M2));
+  assert.strictEqual(vc.venta.Referencia, 'Mesa 4'); assert.strictEqual(vc.venta.Nota_Cocina, 'Salir juntos');
+  const lb = vc.detalle.find(x => x.ID_Producto === burger.ID_Producto), ld = vc.detalle.find(x => x.ID_Producto === bebida.ID_Producto);
+  assert.strictEqual(lb.Cantidad, 3); assert.strictEqual(lb.Nota, 'sin cebolla / bien cocida'); assert.strictEqual(lb.Va_A_Cocina, true);
+  assert.strictEqual(ld.Va_A_Cocina, false);
+  const dd = ok(rt.call('detalleVenta', { ID_Venta: vc.venta.ID_Venta }, M2));
+  assert.strictEqual(dd.venta.Referencia, 'Mesa 4'); assert(dd.detalle.some(x => x.Nota === 'sin cebolla / bien cocida'));
   assert.strictEqual(ok(rt.call('misServicios', {}, M2)).filter(x => x.ID_Venta === vs.venta.ID_Venta).length, 0, 'sin servicio de delivery');
 }
 

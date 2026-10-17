@@ -74,9 +74,15 @@ export function Configuracion() {
             <select className="input" disabled={!edit} value={v.FORMATO_DOC_DEFECTO || 'Termica 80mm'} onChange={(e) => setV({ ...v, FORMATO_DOC_DEFECTO: e.target.value })}>
               {['Termica 58mm', 'Termica 80mm', 'A4 Carta'].map((o) => <option key={o}>{o}</option>)}</select></label>
         </div>
+        <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.COMANDA_AUTO ?? false)} onChange={(e) => setV({ ...v, COMANDA_AUTO: e.target.checked })} />Al vender, abrir primero la comanda de cocina</label>
+        <label className="f">Formato de la comanda
+          <select className="input" disabled={!edit} value={v.FORMATO_COMANDA || 'Termica 80mm'} onChange={(e) => setV({ ...v, FORMATO_COMANDA: e.target.value })}>
+            <option>Termica 58mm</option><option>Termica 80mm</option><option>A4 Carta</option>
+          </select>
+        </label>
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.ALERTA_STOCK_ACTIVA ?? true)} onChange={(e) => setV({ ...v, ALERTA_STOCK_ACTIVA: e.target.checked })} />Generar alertas de stock mínimo</label>
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.PERMITIR_STOCK_NEGATIVO ?? false)} onChange={(e) => setV({ ...v, PERMITIR_STOCK_NEGATIVO: e.target.checked })} />Permitir vender sin stock (queda negativo)</label>
-        {edit && <div><button className="btn primary" disabled={busy} onClick={() => save(Object.fromEntries([...CFG.map(([k]) => k), 'FORMATO_DOC_DEFECTO', 'ALERTA_STOCK_ACTIVA', 'PERMITIR_STOCK_NEGATIVO'].map((k) => [k, v[k] ?? ''])))}>Guardar cambios</button></div>}
+        {edit && <div><button className="btn primary" disabled={busy} onClick={() => save(Object.fromEntries([...CFG.map(([k]) => k), 'FORMATO_DOC_DEFECTO', 'FORMATO_COMANDA', 'COMANDA_AUTO', 'ALERTA_STOCK_ACTIVA', 'PERMITIR_STOCK_NEGATIVO'].map((k) => [k, v[k] ?? ''])))}>Guardar cambios</button></div>}
       </div>
       <div className="card stack"><h2>Unidades de medida</h2><Unidades /></div>
     </div>

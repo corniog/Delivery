@@ -11,7 +11,7 @@ export function Productos() {
     <>
       <Crud
         title="Inventario" tabla="Productos" module="Inventario" idKey="ID_Producto"
-        searchKeys={['Nombre', 'Codigo_Barras', 'SKU']} defaults={{ Activo: true, Stock_Actual: 0, Stock_Minimo: 0, Unidad_Medida: 'Unidad' }}
+        searchKeys={['Nombre', 'Codigo_Barras', 'SKU']} defaults={{ Activo: true, Va_A_Cocina: true, Stock_Actual: 0, Stock_Minimo: 0, Unidad_Medida: 'Unidad' }}
         filterRef={{ ref: 'Categorias', refKey: 'ID_Categoria', key: 'ID_Categoria', label: 'Categoría' }}
         rowClass={(r) => (Number(r.Stock_Actual) <= Number(r.Stock_Minimo) ? 'low' : '')}
         fields={[
@@ -26,6 +26,7 @@ export function Productos() {
           { key: 'Stock_Minimo', label: 'Stock mínimo (alerta)', type: 'number' },
           { key: 'ID_Proveedor', label: 'Proveedor', type: 'ref', ref: 'Proveedores', refKey: 'ID_Proveedor' },
           { key: 'Activo', label: 'Disponible para venta', type: 'bool' },
+          { key: 'Va_A_Cocina', label: 'Sale en la comanda de cocina', type: 'bool' },
           { key: 'Imagen', label: 'Imagen', type: 'image' }
         ]}
         columns={[

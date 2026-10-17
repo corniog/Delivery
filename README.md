@@ -150,3 +150,15 @@ En el login pulsa **Configurar servidor** y usa `http://localhost:8787`.
 - Los permisos se validan **en el servidor**, no solo ocultando botones.
 - 5 intentos fallidos bloquean el acceso 10 minutos. Las sesiones duran 6 horas.
 - Las imágenes y PDF subidos quedan en una carpeta de tu Drive con acceso "cualquiera con el enlace" (necesario para mostrarlas en la app).
+
+## Comanda de cocina
+
+Al confirmar una venta se puede imprimir, además del comprobante (ticket/boleta/factura), una **comanda** para la cocina: sin precios, con referencia (mesa/nombre), nota general y nota por producto.
+
+- En la venta: campos *Referencia*, *Nota general para cocina* y una nota por producto.
+- En Productos: casilla *Sale en la comanda de cocina* (bebidas, etc. pueden quedar fuera).
+- Configuración: *Abrir primero la comanda* y *Formato de la comanda*.
+- Tras la venta (y desde el Historial) hay dos pestañas: **Comprobante** y **Comanda cocina**. Se imprime cada una por separado y en el diálogo de impresión se elige la impresora (caja o cocina).
+- Para que salga sola, sin diálogo, en una impresora térmica de red (ESC/POS) se necesita una integración adicional.
+
+Tras actualizar: pegar `TODO_EN_UN_ARCHIVO.gs`, ejecutar `actualizar`, publicar nueva versión y volver a poner `LICENCIA_URL` / `LICENCIA_ID`.

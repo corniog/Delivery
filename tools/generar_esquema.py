@@ -83,6 +83,7 @@ T["Productos"] = [
  ("ID_Proveedor","Ref → Proveedores","Proveedor habitual","PR001"),
  ("Activo","Yes/No","Producto disponible para venta","TRUE"),
  ("Fecha_Creacion","DateTime","Automático",now),
+ ("Va_A_Cocina","Yes/No","Si es TRUE (o vacío) el producto sale en la comanda de cocina","TRUE"),
 ]
 T["Movimientos_Inventario"] = [
  ("ID_Mov","Text (KEY)","Identificador","M00001"),
@@ -174,6 +175,8 @@ T["Ventas"] = [
  ("Tipo_Documento","Enum: Ticket|Boleta|Factura","Documento a emitir","Boleta"),
  ("Dia_Semana","Text","Virtual/Apps Script: TEXT([Fecha_Hora],\"dddd\"). Sirve para KPI","jueves"),
  ("Usuario","Email","Vendedor: USEREMAIL()","ventas@minegocio.com"),
+ ("Referencia","Text","Mesa, nombre o número para identificar el pedido en cocina","Mesa 4"),
+ ("Nota_Cocina","Text","Indicación general para la cocina","Todo para llevar junto"),
 ]
 T["Detalle_Venta"] = [
  ("ID_Detalle","Text (KEY)","Identificador","DV000001"),
@@ -187,6 +190,8 @@ T["Detalle_Venta"] = [
  ("Descuento","Price","Descuento de la línea","0"),
  ("Subtotal","Price","Cantidad × Precio - Descuento","3000"),
  ("Fecha","Date","Fecha de la venta (para filtros y KPI)",date(2026,10,15)),
+ ("Nota","Text","Indicación para cocina de este producto (ej. sin cebolla)",""),
+ ("Va_A_Cocina","Yes/No","Copia del producto: sale en la comanda","TRUE"),
 ]
 T["Servicios_Delivery"] = [
  ("ID_Servicio","Text (KEY)","Identificador","S000001"),
@@ -288,6 +293,8 @@ seed["Configuracion"] = [
  ["TARIFA_BASE_DELIVERY","1000","Tarifa base por defecto"],
  ["TARIFA_KM_DELIVERY","300","Tarifa por km por defecto"],
  ["FORMATO_DOC_DEFECTO","Termica 80mm","Termica 58mm | Termica 80mm | A4 Carta"],
+ ["FORMATO_COMANDA","Termica 80mm","Formato del ticket de cocina"],
+ ["COMANDA_AUTO","FALSE","TRUE = al vender se abre sola la impresión de la comanda"],
  ["ORIGEN_LATLONG","-33.4372,-70.6506","Coordenadas del local"],
  ["ALERTA_STOCK_ACTIVA","TRUE","Activa las alertas de stock mínimo"],
  ["LOGO","","URL del logo (se sube desde Configuración)"],
