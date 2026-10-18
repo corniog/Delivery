@@ -12,7 +12,11 @@ export default function Login() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [logoBad, setLogoBad] = useState(false);
-  const [cfg, setCfg] = useState(!getApiUrl() && !sb);
+  // El cliente nunca ve la configuración del servidor. Solo aparece si el sitio aún no tiene ninguno
+  // o si el proveedor abre la web con ?admin=1 al final de la dirección.
+  const sinServidor = !getApiUrl() && !sb;
+  const modoAdmin = sinServidor || new URLSearchParams(window.location.search).has('admin');
+  const [cfg, setCfg] = useState(sinServidor);
   const [url, setUrl] = useState(getApiUrl());
   const go = async (e) => {
     e.preventDefault(); setBusy(true); setErr('');
@@ -47,14 +51,14 @@ export default function Login() {
           <button className="btn primary" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
           {sb && <button type="button" className="btn sm" onClick={() => { setModo('crear'); setErr(''); }}>Crear mi negocio (15 días gratis)</button>}
         </form>)}
-        <button className="btn sm" onClick={() => setCfg(!cfg)}>Configurar servidor</button>
-        {cfg && (
+        {modoAdmin && <button className="btn sm" onClick={() => setCfg(!cfg)}>Configurar servidor</button>}
+        {modoAdmin && cfg && (
           <form className="stack" onSubmit={(e) => { e.preventDefault(); setSupabase(sbf.url, sbf.key); window.location.reload(); }}>
             <label className="f">URL de Supabase<input className="input" value={sbf.url} onChange={(e) => setSbf({ ...sbf, url: e.target.value })} placeholder="https://xxxx.supabase.co" /></label>
             <label className="f">Clave pública (anon / publishable)<input className="input" value={sbf.key} onChange={(e) => setSbf({ ...sbf, key: e.target.value })} /></label>
             <button className="btn">Guardar</button>
           </form>)}
-        {cfg && (
+        {modoAdmin && cfg && (
           <form className="stack" onSubmit={(e) => { e.preventDefault(); setApiUrl(url); setSupabase('', ''); window.location.reload(); }}>
             <label className="f">URL de Apps Script (negocios con Google Sheets)<input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" /></label>
             <button className="btn">{sb ? 'Volver a Apps Script' : 'Guardar URL'}</button>
