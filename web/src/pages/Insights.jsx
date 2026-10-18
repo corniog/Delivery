@@ -83,7 +83,9 @@ function HistVentas() {
   useEffect(() => { load(); }, [load]);
   const s = f.q.trim().toLowerCase();
   const porCobrar = (v) => v.Estado !== 'Anulada' && v.Estado_Pago !== 'Pagado';
-  const rows = r ? r.rows.filter((v) => (!s || [v.ID_Venta, v.Cliente, v.Metodo_Pago, v.Estado, v.Estado_Pago].some((x) => String(x || '').toLowerCase().includes(s))) && (f.pago !== 'pend' || porCobrar(v))) : [];
+  // Estado que ve el usuario: pagada = Confirmada (o su avance de delivery), sin pagar = Pendiente
+  const estadoDe = (v) => (v.Estado === 'Anulada' ? 'Anulada' : v.Estado_Pago === 'Parcial' ? 'Pago parcial' : v.Estado_Pago !== 'Pagado' ? 'Pendiente' : v.Estado);
+  const rows = r ? r.rows.filter((v) => (!s || [v.ID_Venta, v.Cliente, v.Metodo_Pago, estadoDe(v), v.Estado_Pago].some((x) => String(x || '').toLowerCase().includes(s))) && (f.pago !== 'pend' || porCobrar(v))) : [];
   const total = rows.filter((v) => v.Estado !== 'Anulada').reduce((a, v) => a + Number(v.Total), 0);
   const pendTotal = rows.filter(porCobrar).reduce((a, v) => a + Number(v.Total), 0);
   const open = async (v) => { setAutoDet(null); try { setDet(await call('detalleVenta', { ID_Venta: v.ID_Venta })); } catch (e) { toast(e.message, true); } };
@@ -116,8 +118,8 @@ function HistVentas() {
             <tbody>{rows.map((v) => (
               <tr key={v.ID_Venta} onClick={() => open(v)} style={{ cursor: 'pointer', opacity: v.Estado === 'Anulada' ? 0.5 : 1 }}>
                 <td data-label="Venta"><b>{v.ID_Venta}</b></td><td data-label="Fecha">{fdt(v.Fecha_Hora)}</td><td data-label="Cliente">{v.Cliente || '—'}</td>
-                <td data-label="Entrega">{v.Tipo_Entrega}</td><td data-label="Pago">{v.Metodo_Pago}{porCobrar(v) && <> <span className="badge warn">{v.Estado_Pago === 'Parcial' ? 'Pago parcial' : 'Por cobrar'}</span></>}</td>
-                <td data-label="Estado"><span className={'badge ' + (v.Estado === 'Anulada' ? 'bad' : v.Estado === 'Entregada' ? 'ok' : '')}>{v.Estado}</span></td>
+                <td data-label="Entrega">{v.Tipo_Entrega}</td><td data-label="Pago">{v.Metodo_Pago}</td>
+                <td data-label="Estado"><span className={'badge ' + (v.Estado === 'Anulada' ? 'bad' : porCobrar(v) ? 'warn' : v.Estado === 'Entregada' || v.Estado === 'Confirmada' ? 'ok' : '')}>{estadoDe(v)}</span></td>
                 <td data-label="Total" className="right">{money(v.Total)}</td>
               </tr>))}</tbody>
             <tfoot><tr><td colSpan={6}>Total del filtro ({rows.filter((v) => v.Estado !== 'Anulada').length} ventas válidas){pendTotal > 0 && <> · <b>por cobrar {money(pendTotal)}</b></>}</td><td className="right">{money(total)}</td></tr></tfoot>

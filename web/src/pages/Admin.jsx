@@ -93,16 +93,26 @@ export function Configuracion() {
           <select className="input" disabled={!edit} value={v.IMPRESION_AL_VENDER || (b(v.COMANDA_AUTO ?? false) ? 'Solo comanda' : 'Preguntar')} onChange={(e) => setV({ ...v, IMPRESION_AL_VENDER: e.target.value })}>
             {['Preguntar', 'Comanda y comprobante', 'Solo comprobante', ...(feat('comanda') ? ['Solo comanda'] : []), 'No imprimir'].map((o) => <option key={o}>{o}</option>)}
           </select>
-          <span className="muted small">«Comanda y comprobante» imprime los dos de una vez, sin pulsar nada más. Todas las impresiones se pueden repetir una por una desde el Historial.</span>
+          <span className="muted small">«Comanda y comprobante» imprime los dos solos, uno tras otro (primero la comanda y luego el comprobante), como dos tickets separados. Si el pago queda pendiente, solo sale la comanda. Todas las impresiones se pueden repetir una por una desde el Historial.</span>
         </label>
         {feat('comanda') && <><label className="f">Formato de la comanda
           <select className="input" disabled={!edit} value={v.FORMATO_COMANDA || 'Termica 80mm'} onChange={(e) => setV({ ...v, FORMATO_COMANDA: e.target.value })}>
             <option>Termica 58mm</option><option>Termica 80mm</option><option>A4 Carta</option>
           </select>
         </label></>}
+        <div className="card stack" style={{ background: 'transparent' }}>
+          <b>Impresoras</b>
+          <p className="muted small" style={{ margin: 0 }}>El navegador no deja elegir la impresora sin mostrar el diálogo de impresión, así que aquí anotas cuál es cuál y la app te lo recuerda al imprimir: en el diálogo, elige esa impresora.</p>
+          <div className="formgrid">
+            {feat('comanda') && <label className="f">Impresora de la comanda (cocina)<input className="input" disabled={!edit} placeholder="Ej: EPSON cocina" value={v.IMPRESORA_COMANDA ?? ''} onChange={(e) => setV({ ...v, IMPRESORA_COMANDA: e.target.value })} /></label>}
+            <label className="f">Impresora del comprobante (caja)<input className="input" disabled={!edit} placeholder="Ej: EPSON TM-T20II caja" value={v.IMPRESORA_COMPROBANTE ?? ''} onChange={(e) => setV({ ...v, IMPRESORA_COMPROBANTE: e.target.value })} /></label>
+            <label className="f">Espacio al final del ticket térmico (mm)<input className="input" type="number" min="0" max="60" disabled={!edit} placeholder="15" value={v.MARGEN_INFERIOR_MM ?? ''} onChange={(e) => setV({ ...v, MARGEN_INFERIOR_MM: e.target.value })} />
+              <span className="muted small">Si el ticket sale con la parte de abajo sin terminar de salir, sube este número (ej. 20 o 25).</span></label>
+          </div>
+        </div>
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.ALERTA_STOCK_ACTIVA ?? true)} onChange={(e) => setV({ ...v, ALERTA_STOCK_ACTIVA: e.target.checked })} />Generar alertas de stock mínimo</label>
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.PERMITIR_STOCK_NEGATIVO ?? false)} onChange={(e) => setV({ ...v, PERMITIR_STOCK_NEGATIVO: e.target.checked })} />Permitir vender sin stock (queda negativo)</label>
-        {edit && <div><button className="btn primary" disabled={busy} onClick={() => save(Object.fromEntries([...CFG.map(([k]) => k), 'FORMATO_DOC_DEFECTO', 'FORMATO_COMANDA', 'COMANDA_ACTIVA', 'IMPRESION_AL_VENDER', 'ALERTA_STOCK_ACTIVA', 'PERMITIR_STOCK_NEGATIVO'].map((k) => [k, v[k] ?? ''])))}>Guardar cambios</button></div>}
+        {edit && <div><button className="btn primary" disabled={busy} onClick={() => save(Object.fromEntries([...CFG.map(([k]) => k), 'FORMATO_DOC_DEFECTO', 'FORMATO_COMANDA', 'COMANDA_ACTIVA', 'IMPRESION_AL_VENDER', 'IMPRESORA_COMANDA', 'IMPRESORA_COMPROBANTE', 'MARGEN_INFERIOR_MM', 'ALERTA_STOCK_ACTIVA', 'PERMITIR_STOCK_NEGATIVO'].map((k) => [k, v[k] ?? ''])))}>Guardar cambios</button></div>}
       </div>
       <div className="card stack"><h2>Unidades de medida</h2><Unidades /></div>
     </div>

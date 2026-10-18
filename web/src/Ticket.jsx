@@ -1,6 +1,18 @@
 import { useAuth } from './auth.jsx';
 import { useFmt, fdt } from './ui.jsx';
 
+// Estilos de impresión según el formato. Térmica: sin márgenes de página, ancho imprimible real (80 mm → 72 mm, 58 mm → 48 mm)
+// y un espacio al final (MARGEN_INFERIOR_MM) para que el papel avance hasta pasar la cuchilla y el ticket salga completo.
+export function PrintStyle({ fmt }) {
+  const { config } = useAuth();
+  const termica = !fmt.includes('A4');
+  const fin = Math.max(0, Math.min(60, Number(config.MARGEN_INFERIOR_MM === undefined || config.MARGEN_INFERIOR_MM === '' ? 15 : config.MARGEN_INFERIOR_MM) || 0));
+  const w = fmt.includes('58') ? 48 : 72;
+  return <style>{termica
+    ? `@page{size:${fmt.includes('58') ? 58 : 80}mm auto;margin:0}@media print{.ticket{width:${w}mm!important;max-width:none!important;padding:2mm 1mm ${fin}mm!important;box-sizing:border-box;border:0!important}}`
+    : '@page{size:A4;margin:10mm}'}</style>;
+}
+
 // Comprobante interno. Formatos: térmica 58 mm, térmica 80 mm o A4/Carta. Imprime con el diálogo del navegador.
 export default function Ticket({ data, formato }) {
   const { config, brand } = useAuth();
@@ -12,7 +24,7 @@ export default function Ticket({ data, formato }) {
   const pendiente = !documento || venta.Estado_Pago !== 'Pagado';  // aún no se emite boleta/factura
   return (
     <>
-      <style>{`@media print{@page{size:${fmt.includes('58') ? '58mm auto' : fmt.includes('A4') ? 'A4' : '80mm auto'};margin:${fmt.includes('A4') ? '10mm' : '2mm'}}}`}</style>
+      <PrintStyle fmt={fmt} />
       <div className="print-area">
         <div className={'ticket ' + cls}>
           {brand.LOGO && <img className="tl" src={brand.LOGO} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}

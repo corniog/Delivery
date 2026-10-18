@@ -4,6 +4,9 @@ import { useAuth } from '../auth.jsx';
 import { Modal, Icon, Scanner, useToast, useFmt } from '../ui.jsx';
 import { Comprobantes, modoImpresion } from '../Comanda.jsx';
 
+// Si el pago quedó pendiente aún no hay comprobante: solo sale la comanda a cocina.
+const autoVenta = (venta, m) => (venta.venta.Estado_Pago !== 'Pagado' ? (m === 'ambos' ? 'comanda' : m === 'venta' ? 'nada' : m) : m);
+
 export default function Sell() {
   const { config, cocina } = useAuth();
   const { money } = useFmt();
@@ -113,7 +116,7 @@ export default function Sell() {
         onDone={(r) => { setCheckout(false); setDone(r); setCart({}); load(); }} />}
       {done && (
         <Modal title="Venta registrada" onClose={() => setDone(null)}>
-          <Comprobantes data={done} onClose={() => setDone(null)} auto={modoImpresion(config, cocina)} />
+          <Comprobantes data={done} onClose={() => setDone(null)} auto={autoVenta(done, modoImpresion(config, cocina))} />
         </Modal>)}
     </div>
   );
