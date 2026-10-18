@@ -15,6 +15,12 @@ on:
         type: choice
         options: [en_vivo, empaquetada]
         default: en_vivo
+      url_supabase:
+        description: 'SOLO si este negocio usa Supabase: Project URL (https://xxxx.supabase.co). Si lo llenas, se ignora la URL de Apps Script'
+        default: ''
+      clave_supabase:
+        description: 'SOLO con Supabase: clave publishable (sb_publishable_…). Nunca la secret'
+        default: ''
       id_app:
         description: 'ID único de la app, minúsculas y puntos (ej: cl.minegocio.delivery). No lo cambies después.'
         default: 'cl.corniog.negocio'
@@ -39,6 +45,8 @@ jobs:
         env:
           NOMBRE: ${{ inputs.nombre_app }}
           URL: ${{ inputs.url_api }}
+          SBURL: ${{ inputs.url_supabase }}
+          SBKEY: ${{ inputs.clave_supabase }}
           IDAPP: ${{ inputs.id_app }}
           MODO: ${{ inputs.modo }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
@@ -54,12 +62,18 @@ jobs:
           c['appName'] = nombre; c['appId'] = idapp
           json.dump(c, open('capacitor.config.json', 'w'), ensure_ascii=False, indent=2)
           url = os.environ.get('URL', '').strip()
-          if url:
+          sbu = os.environ.get('SBURL', '').strip().rstrip('/'); sbk = os.environ.get('SBKEY', '').strip()
+          if bool(sbu) != bool(sbk): raise SystemExit('Para Supabase llena la URL y la clave publishable')
+          if sbk.startswith('sb_secret') or sbk.startswith('eyJ') and 'service_role' in sbk: raise SystemExit('Esa es una clave secreta: usa la publishable')
+          if sbu:
+              url = ''
+              json.dump({'SUPABASE_URL': sbu, 'SUPABASE_KEY': sbk}, open('public/config.json', 'w'), indent=2)
+          elif url:
               json.dump({'API_URL': url}, open('public/config.json', 'w'), indent=2)
           if os.environ.get('MODO', 'en_vivo') == 'en_vivo':
               # La APK abre la web publicada en GitHub Pages: cada cambio llega solo, sin reinstalar
               from urllib.parse import quote
-              start = os.environ['PAGES_URL'] + (('?api=' + quote(url, safe='')) if url else '')
+              start = os.environ['PAGES_URL'] + (('?sb=' + quote(sbu, safe='') + '&sbk=' + quote(sbk, safe='')) if sbu else (('?api=' + quote(url, safe='')) if url else ''))
               c['server']['url'] = start
               json.dump(c, open('capacitor.config.json', 'w'), ensure_ascii=False, indent=2)
               print('Modo en vivo ->', start)
@@ -83,7 +97,7 @@ jobs:
           npm ci
           npm run build
         env:
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_API_URL: ${{ inputs.url_supabase == '' && vars.VITE_API_URL || '' }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_KEY: ${{ vars.VITE_SUPABASE_KEY }}
       - name: Crear proyecto Android

@@ -17,8 +17,11 @@ export async function loadConfig() {
   // (así un link malicioso en un navegador normal no puede cambiar a qué servidor se conecta el usuario).
   try {
     const cap = window.Capacitor;
-    const q = new URLSearchParams(window.location.search).get('api');
-    if (q && cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform() && /^https:\/\//i.test(q)) store.set('api_url', q.trim());
+    const sp = new URLSearchParams(window.location.search);
+    const nativa = cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform();
+    const q = sp.get('api'), sbu = sp.get('sb'), sbk = sp.get('sbk');
+    if (nativa && sbu && sbk && /^https:\/\//i.test(sbu)) { store.set('sb_url', sbu.trim().replace(/\/+$/, '')); store.set('sb_key', sbk.trim()); store.set('api_url', null); }
+    else if (nativa && q && /^https:\/\//i.test(q)) { store.set('api_url', q.trim()); store.set('sb_url', null); store.set('sb_key', null); }
   } catch { /* ignorar */ }
   try {
     const r = await fetch('./config.json', { cache: 'no-store' });
