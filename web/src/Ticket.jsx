@@ -9,6 +9,7 @@ export default function Ticket({ data, formato }) {
   const fmt = formato || (documento && documento.Formato) || config.FORMATO_DOC_DEFECTO || 'Termica 80mm';
   const cls = fmt.includes('58') ? 't58' : fmt.includes('A4') ? 'a4' : '';
   const tipo = (documento && documento.Tipo) || venta.Tipo_Documento || 'Ticket';
+  const pendiente = !documento || venta.Estado_Pago !== 'Pagado';  // aún no se emite boleta/factura
   return (
     <>
       <style>{`@media print{@page{size:${fmt.includes('58') ? '58mm auto' : fmt.includes('A4') ? 'A4' : '80mm auto'};margin:${fmt.includes('A4') ? '10mm' : '2mm'}}}`}</style>
@@ -19,7 +20,9 @@ export default function Ticket({ data, formato }) {
           {config.DOCUMENTO_NEGOCIO && <div className="c">{config.DOCUMENTO_NEGOCIO}</div>}
           {config.DIRECCION_NEGOCIO && <div className="c">{config.DIRECCION_NEGOCIO}</div>}
           <hr />
-          <div className="l"><b>{tipo.toUpperCase()} N° {documento ? documento.Folio : ''}</b></div>
+          {pendiente
+            ? <div className="c" style={{ border: '2px solid #000', padding: 3 }}><b>PEDIDO · PAGO {String(venta.Estado_Pago || 'Pendiente').toUpperCase()}</b></div>
+            : <div className="l"><b>{tipo.toUpperCase()} N° {documento.Folio}</b></div>}
           <div className="l"><span>Venta</span><span>{venta.ID_Venta}</span></div>
           <div className="l"><span>Fecha</span><span>{fdt(venta.Fecha_Hora)}</span></div>
           {cliente && <div className="l"><span>Cliente</span><span>{cliente.Nombre}</span></div>}
@@ -39,7 +42,8 @@ export default function Ticket({ data, formato }) {
           <div className="l"><span>Pago</span><span>{venta.Metodo_Pago} ({venta.Estado_Pago})</span></div>
           <hr />
           <div className="c">¡Gracias por su compra!</div>
-          {tipo !== 'Ticket' && <div className="c" style={{ fontSize: '.8em', marginTop: 4 }}>Comprobante interno sin validez tributaria</div>}
+          {pendiente && <div className="c" style={{ fontSize: '.8em', marginTop: 4 }}>No es {tipo === 'Ticket' ? 'ticket de pago' : tipo.toLowerCase()}: se emitirá al recibir el pago</div>}
+          {!pendiente && tipo !== 'Ticket' && <div className="c" style={{ fontSize: '.8em', marginTop: 4 }}>Comprobante interno sin validez tributaria</div>}
         </div>
       </div>
     </>

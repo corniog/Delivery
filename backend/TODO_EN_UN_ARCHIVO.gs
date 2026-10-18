@@ -823,6 +823,7 @@ const ACTIONS = {
   ajustarStock: ajustarStock_,
   crearVenta: crearVenta_,
   anularVenta: anularVenta_,
+  pagarVenta: pagarVenta_,
   listarVentas: listarVentas_,
   detalleVenta: detalleVenta_,
   misServicios: misServicios_,
@@ -1570,18 +1571,45 @@ function crearVenta_(ctx, d) {
       };
       insert_('Servicios_Delivery', servicio);
     }
-    // Documento interno (ticket / comprobante)
-    const imp = num_(cfg.IMPUESTO_PORC);
-    const neto = imp > 0 ? round2_(total / (1 + imp)) : total;
-    const documento = {
-      ID_Documento: newId_('DOC'), ID_Venta: idVenta, Tipo: tipoDoc,
-      Folio: String(nextNum_('doc_' + tipoDoc)), Fecha: fh, Neto: neto, Impuesto: round2_(total - neto), Total: total,
-      Formato: d.formato || cfg.FORMATO_DOC_DEFECTO || 'Termica 80mm', PDF_URL: ''
-    };
-    insert_('Documentos', documento);
-    audit_(ctx, 'Ventas', 'Crear', idVenta, 'Total ' + total);
+    // Documento (ticket / boleta / factura): solo se emite cuando la venta está pagada.
+    // Si queda pendiente, el comprobante se emite después con "pagarVenta".
+    const documento = venta.Estado_Pago === 'Pagado' ? emitirDocumento_(cfg, idVenta, tipoDoc, total, fh, d.formato) : null;
+    audit_(ctx, 'Ventas', 'Crear', idVenta, 'Total ' + total + (documento ? '' : ' (pago ' + venta.Estado_Pago + ')'));
     const cliente = d.ID_Cliente ? cleanRow_('Clientes', findBy_('Clientes', 'ID_Cliente', d.ID_Cliente)) : null;
     return { venta: venta, detalle: detalle, servicio: servicio, documento: documento, cliente: cliente };
+  } finally { lock.releaseLock(); }
+}
+
+function emitirDocumento_(cfg, idVenta, tipoDoc, total, fh, formato) {
+  const imp = num_(cfg.IMPUESTO_PORC);
+  const neto = imp > 0 ? round2_(total / (1 + imp)) : total;
+  const documento = {
+    ID_Documento: newId_('DOC'), ID_Venta: idVenta, Tipo: tipoDoc,
+    Folio: String(nextNum_('doc_' + tipoDoc)), Fecha: fh, Neto: neto, Impuesto: round2_(total - neto), Total: total,
+    Formato: formato || cfg.FORMATO_DOC_DEFECTO || 'Termica 80mm', PDF_URL: ''
+  };
+  insert_('Documentos', documento);
+  return documento;
+}
+
+// Cobrar una venta que quedó pendiente: la marca pagada y emite su boleta / factura / ticket.
+function pagarVenta_(ctx, d) {
+  need_(ctx, 'Ventas', 'Crear');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const v = findBy_('Ventas', 'ID_Venta', d.ID_Venta);
+    if (!v) fail_('Venta no encontrada');
+    if (v.Estado === 'Anulada') fail_('La venta está anulada');
+    if (v.Estado_Pago === 'Pagado') fail_('La venta ya está pagada');
+    const cfg = config_();
+    const tipoDoc = ['Ticket', 'Boleta', 'Factura'].indexOf(d.tipoDocumento) >= 0 ? d.tipoDocumento : (v.Tipo_Documento || 'Ticket');
+    const patch = { Estado_Pago: 'Pagado', Tipo_Documento: tipoDoc };
+    if (d.metodoPago) patch.Metodo_Pago = d.metodoPago;
+    update_('Ventas', v._row, patch);
+    const doc = emitirDocumento_(cfg, v.ID_Venta, tipoDoc, num_(v.Total), fmtDT_(new Date()), d.formato);
+    audit_(ctx, 'Ventas', 'Editar', v.ID_Venta, 'Pago recibido (' + (d.metodoPago || v.Metodo_Pago) + '), ' + tipoDoc + ' N° ' + doc.Folio);
+    return detalleVenta_(ctx, { ID_Venta: v.ID_Venta });
   } finally { lock.releaseLock(); }
 }
 

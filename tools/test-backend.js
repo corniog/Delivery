@@ -74,6 +74,26 @@ const h = ok(rt.call('historialDelivery', { nombre: 'juan' }, T));
 assert.strictEqual(h.total, 1000); assert.strictEqual(h.servicios, 1); assert.strictEqual(h.km, 5);
 assert.strictEqual(ok(rt.call('historialDelivery', { desde: '2099-01-01' }, T)).total, 0);
 
+// venta pendiente: se registra y descuenta stock, pero NO emite documento hasta cobrar
+const stock0 = Number(ok(rt.call('listar', { tabla: 'Productos' }, T)).find(p => p.ID_Producto === p2.ID_Producto).Stock_Actual);
+const pend = ok(rt.call('crearVenta', { items: [{ ID_Producto: p2.ID_Producto, Cantidad: 2 }], metodoPago: 'Efectivo', estadoPago: 'Pendiente', tipoDocumento: 'Boleta' }, T));
+assert.strictEqual(pend.venta.Estado_Pago, 'Pendiente'); assert.strictEqual(pend.documento, null);
+assert.strictEqual(Number(ok(rt.call('listar', { tabla: 'Productos' }, T)).find(p => p.ID_Producto === p2.ID_Producto).Stock_Actual), stock0 - 2);
+assert.strictEqual(ok(rt.call('detalleVenta', { ID_Venta: pend.venta.ID_Venta }, T)).documento, null);
+bad(rt.call('pagarVenta', { ID_Venta: pend.venta.ID_Venta }, J), 'permiso');
+bad(rt.call('pagarVenta', { ID_Venta: 'V999999' }, T), 'no encontrada');
+const pag = ok(rt.call('pagarVenta', { ID_Venta: pend.venta.ID_Venta, metodoPago: 'Tarjeta', tipoDocumento: 'Factura' }, T));
+assert.strictEqual(pag.venta.Estado_Pago, 'Pagado'); assert.strictEqual(pag.venta.Metodo_Pago, 'Tarjeta');
+assert.strictEqual(pag.documento.Tipo, 'Factura'); assert.strictEqual(pag.documento.Folio, '1'); assert.strictEqual(Number(pag.documento.Total), 1600);
+assert.strictEqual(pag.detalle.length, 1);
+bad(rt.call('pagarVenta', { ID_Venta: pend.venta.ID_Venta }, T), 'ya está pagada');
+assert.strictEqual(ok(rt.call('listarVentas', {}, T)).rows.find(v => v.ID_Venta === pend.venta.ID_Venta).Estado_Pago, 'Pagado');
+// una venta pendiente anulada no se puede cobrar
+const pend2 = ok(rt.call('crearVenta', { items: [{ ID_Producto: p2.ID_Producto, Cantidad: 1 }], estadoPago: 'Parcial' }, T));
+ok(rt.call('anularVenta', { ID_Venta: pend2.venta.ID_Venta }, T));
+bad(rt.call('pagarVenta', { ID_Venta: pend2.venta.ID_Venta }, T), 'anulada');
+ok(rt.call('anularVenta', { ID_Venta: pend.venta.ID_Venta }, T));
+
 // anular venta restaura stock
 bad(rt.call('anularVenta', { ID_Venta: r.venta.ID_Venta }, J), 'permiso');
 ok(rt.call('anularVenta', { ID_Venta: r.venta.ID_Venta, motivo: 'prueba' }, T));

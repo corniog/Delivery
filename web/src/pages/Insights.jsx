@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { Icon, Modal, BarList, useFmt, useToast, fdt, today, daysAgo, Confirm } from '../ui.jsx';
-import { Comprobantes } from '../Comanda.jsx';
+import { Comprobantes, modoImpresion } from '../Comanda.jsx';
 import { DeliveryHistory } from './Delivery.jsx';
 import { SubscriptionBanner } from '../Suscripcion.jsx';
 
@@ -50,7 +50,7 @@ export function Dashboard() {
 }
 
 export function Historial() {
-  const { can } = useAuth();
+  const { can, feat } = useAuth();
   const [tab, setTab] = useState('ventas');
   return (
     <div className="stack">
@@ -69,9 +69,11 @@ export function Historial() {
 
 function HistVentas() {
   const { money } = useFmt();
-  const { can } = useAuth();
+  const { can, config, cocina } = useAuth();
   const toast = useToast();
-  const [f, setF] = useState({ desde: daysAgo(30), hasta: today(), q: '' });
+  const [f, setF] = useState({ desde: daysAgo(30), hasta: today(), q: '', pago: '' });
+  const [cobrar, setCobrar] = useState(null);
+  const [autoDet, setAutoDet] = useState(null);
   const [r, setR] = useState(null);
   const [det, setDet] = useState(null);
   const [anular, setAnular] = useState(null);
@@ -80,9 +82,20 @@ function HistVentas() {
   }, [f.desde, f.hasta, toast]);
   useEffect(() => { load(); }, [load]);
   const s = f.q.trim().toLowerCase();
-  const rows = r ? r.rows.filter((v) => !s || [v.ID_Venta, v.Cliente, v.Metodo_Pago, v.Estado].some((x) => String(x || '').toLowerCase().includes(s))) : [];
+  const porCobrar = (v) => v.Estado !== 'Anulada' && v.Estado_Pago !== 'Pagado';
+  const rows = r ? r.rows.filter((v) => (!s || [v.ID_Venta, v.Cliente, v.Metodo_Pago, v.Estado, v.Estado_Pago].some((x) => String(x || '').toLowerCase().includes(s))) && (f.pago !== 'pend' || porCobrar(v))) : [];
   const total = rows.filter((v) => v.Estado !== 'Anulada').reduce((a, v) => a + Number(v.Total), 0);
-  const open = async (v) => { try { setDet(await call('detalleVenta', { ID_Venta: v.ID_Venta })); } catch (e) { toast(e.message, true); } };
+  const pendTotal = rows.filter(porCobrar).reduce((a, v) => a + Number(v.Total), 0);
+  const open = async (v) => { setAutoDet(null); try { setDet(await call('detalleVenta', { ID_Venta: v.ID_Venta })); } catch (e) { toast(e.message, true); } };
+  const doCobrar = async () => {
+    try {
+      const res = await call('pagarVenta', { ID_Venta: cobrar.venta.ID_Venta, metodoPago: cobrar.metodoPago, tipoDocumento: cobrar.tipoDocumento });
+      toast('Pago registrado. ' + res.documento.Tipo + ' N° ' + res.documento.Folio + ' emitida');
+      const m = modoImpresion(config, cocina);
+      setAutoDet(m === 'ambos' || m === 'venta' ? 'venta' : null);   // al cobrar solo se imprime el comprobante: la comanda ya salió al vender
+      setDet(res); setCobrar(null); load();
+    } catch (e) { toast(e.message, true); }
+  };
   const doAnular = async () => {
     try { await call('anularVenta', { ID_Venta: anular.ID_Venta, motivo: 'Anulada desde historial' }); toast('Venta anulada y stock restituido'); } catch (e) { toast(e.message, true); }
     setAnular(null); setDet(null); load();
@@ -93,6 +106,8 @@ function HistVentas() {
         <input className="input" style={{ maxWidth: 260 }} placeholder="Buscar venta, cliente…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
         <label className="row small muted">Desde <input className="input" type="date" value={f.desde} onChange={(e) => setF({ ...f, desde: e.target.value })} /></label>
         <label className="row small muted">Hasta <input className="input" type="date" value={f.hasta} onChange={(e) => setF({ ...f, hasta: e.target.value })} /></label>
+        <select className="input" style={{ maxWidth: 190 }} value={f.pago} onChange={(e) => setF({ ...f, pago: e.target.value })}>
+          <option value="">Todas las ventas</option><option value="pend">Solo por cobrar</option></select>
       </div>
       <div className="card" style={{ padding: 6 }}>
         {!r ? <p className="muted" style={{ padding: 12 }}>Cargando…</p> : !rows.length ? <p className="muted" style={{ padding: 12 }}>No hay ventas en este filtro.</p> : (
@@ -101,16 +116,32 @@ function HistVentas() {
             <tbody>{rows.map((v) => (
               <tr key={v.ID_Venta} onClick={() => open(v)} style={{ cursor: 'pointer', opacity: v.Estado === 'Anulada' ? 0.5 : 1 }}>
                 <td data-label="Venta"><b>{v.ID_Venta}</b></td><td data-label="Fecha">{fdt(v.Fecha_Hora)}</td><td data-label="Cliente">{v.Cliente || '—'}</td>
-                <td data-label="Entrega">{v.Tipo_Entrega}</td><td data-label="Pago">{v.Metodo_Pago}</td>
+                <td data-label="Entrega">{v.Tipo_Entrega}</td><td data-label="Pago">{v.Metodo_Pago}{porCobrar(v) && <> <span className="badge warn">{v.Estado_Pago === 'Parcial' ? 'Pago parcial' : 'Por cobrar'}</span></>}</td>
                 <td data-label="Estado"><span className={'badge ' + (v.Estado === 'Anulada' ? 'bad' : v.Estado === 'Entregada' ? 'ok' : '')}>{v.Estado}</span></td>
                 <td data-label="Total" className="right">{money(v.Total)}</td>
               </tr>))}</tbody>
-            <tfoot><tr><td colSpan={6}>Total del filtro ({rows.filter((v) => v.Estado !== 'Anulada').length} ventas válidas)</td><td className="right">{money(total)}</td></tr></tfoot>
+            <tfoot><tr><td colSpan={6}>Total del filtro ({rows.filter((v) => v.Estado !== 'Anulada').length} ventas válidas){pendTotal > 0 && <> · <b>por cobrar {money(pendTotal)}</b></>}</td><td className="right">{money(total)}</td></tr></tfoot>
           </table>)}
       </div>
       {det && (
         <Modal title={'Venta ' + det.venta.ID_Venta} onClose={() => setDet(null)} wide>
-          <Comprobantes data={det} extra={can('Ventas', 'Eliminar') && det.venta.Estado !== 'Anulada' && <button className="btn danger" onClick={() => setAnular(det.venta)}>Anular venta</button>} />
+          <Comprobantes key={det.venta.ID_Venta + det.venta.Estado_Pago} data={det} auto={autoDet} extra={<>
+            {can('Ventas', 'Crear') && porCobrar(det.venta) && <button className="btn primary" onClick={() => setCobrar({ venta: det.venta, metodoPago: det.venta.Metodo_Pago || 'Efectivo', tipoDocumento: det.venta.Tipo_Documento || 'Ticket' })}>Cobrar y emitir {String(det.venta.Tipo_Documento || 'Ticket').toLowerCase()}</button>}
+            {can('Ventas', 'Eliminar') && det.venta.Estado !== 'Anulada' && <button className="btn danger" onClick={() => setAnular(det.venta)}>Anular venta</button>}</>} />
+        </Modal>)}
+      {cobrar && (
+        <Modal title={'Cobrar venta ' + cobrar.venta.ID_Venta} onClose={() => setCobrar(null)}>
+          <div className="stack">
+            <div className="row" style={{ justifyContent: 'space-between', fontSize: '1.3rem' }}><span>Total a cobrar</span><b>{money(cobrar.venta.Total)}</b></div>
+            <label className="f">Método de pago
+              <select className="input" value={cobrar.metodoPago} onChange={(e) => setCobrar({ ...cobrar, metodoPago: e.target.value })}>{['Efectivo', 'Tarjeta', 'Transferencia', 'Mixto'].map((o) => <option key={o}>{o}</option>)}</select></label>
+            <label className="f">Documento a emitir
+              <select className="input" value={cobrar.tipoDocumento} onChange={(e) => setCobrar({ ...cobrar, tipoDocumento: e.target.value })}>{['Ticket', 'Boleta', 'Factura'].map((o) => <option key={o}>{o}</option>)}</select></label>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setCobrar(null)}>Cancelar</button>
+              <button className="btn primary" onClick={doCobrar}>Confirmar pago</button>
+            </div>
+          </div>
         </Modal>)}
       {anular && <Confirm yesText="Anular" text={`¿Anular la venta ${anular.ID_Venta}? Se devolverá el stock de los productos.`} onYes={doAnular} onNo={() => setAnular(null)} />}
     </div>

@@ -88,15 +88,21 @@ export function Configuracion() {
             <select className="input" disabled={!edit} value={v.FORMATO_DOC_DEFECTO || 'Termica 80mm'} onChange={(e) => setV({ ...v, FORMATO_DOC_DEFECTO: e.target.value })}>
               {['Termica 58mm', 'Termica 80mm', 'A4 Carta'].map((o) => <option key={o}>{o}</option>)}</select></label>
         </div>
-        {feat('comanda') && <><label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.COMANDA_AUTO ?? false)} onChange={(e) => setV({ ...v, COMANDA_AUTO: e.target.checked })} />Al vender, abrir primero la comanda de cocina</label>
-        <label className="f">Formato de la comanda
+        {feat('comanda') && <label className="chk"><input type="checkbox" disabled={!edit} checked={v.COMANDA_ACTIVA === undefined || v.COMANDA_ACTIVA === '' || b(v.COMANDA_ACTIVA)} onChange={(e) => setV({ ...v, COMANDA_ACTIVA: e.target.checked })} />Mi negocio usa cocina (enviar comanda)</label>}
+        <label className="f">Al confirmar una venta
+          <select className="input" disabled={!edit} value={v.IMPRESION_AL_VENDER || (b(v.COMANDA_AUTO ?? false) ? 'Solo comanda' : 'Preguntar')} onChange={(e) => setV({ ...v, IMPRESION_AL_VENDER: e.target.value })}>
+            {['Preguntar', 'Comanda y comprobante', 'Solo comprobante', ...(feat('comanda') ? ['Solo comanda'] : []), 'No imprimir'].map((o) => <option key={o}>{o}</option>)}
+          </select>
+          <span className="muted small">«Comanda y comprobante» imprime los dos de una vez, sin pulsar nada más. Todas las impresiones se pueden repetir una por una desde el Historial.</span>
+        </label>
+        {feat('comanda') && <><label className="f">Formato de la comanda
           <select className="input" disabled={!edit} value={v.FORMATO_COMANDA || 'Termica 80mm'} onChange={(e) => setV({ ...v, FORMATO_COMANDA: e.target.value })}>
             <option>Termica 58mm</option><option>Termica 80mm</option><option>A4 Carta</option>
           </select>
         </label></>}
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.ALERTA_STOCK_ACTIVA ?? true)} onChange={(e) => setV({ ...v, ALERTA_STOCK_ACTIVA: e.target.checked })} />Generar alertas de stock mínimo</label>
         <label className="chk"><input type="checkbox" disabled={!edit} checked={b(v.PERMITIR_STOCK_NEGATIVO ?? false)} onChange={(e) => setV({ ...v, PERMITIR_STOCK_NEGATIVO: e.target.checked })} />Permitir vender sin stock (queda negativo)</label>
-        {edit && <div><button className="btn primary" disabled={busy} onClick={() => save(Object.fromEntries([...CFG.map(([k]) => k), 'FORMATO_DOC_DEFECTO', 'FORMATO_COMANDA', 'COMANDA_AUTO', 'ALERTA_STOCK_ACTIVA', 'PERMITIR_STOCK_NEGATIVO'].map((k) => [k, v[k] ?? ''])))}>Guardar cambios</button></div>}
+        {edit && <div><button className="btn primary" disabled={busy} onClick={() => save(Object.fromEntries([...CFG.map(([k]) => k), 'FORMATO_DOC_DEFECTO', 'FORMATO_COMANDA', 'COMANDA_ACTIVA', 'IMPRESION_AL_VENDER', 'ALERTA_STOCK_ACTIVA', 'PERMITIR_STOCK_NEGATIVO'].map((k) => [k, v[k] ?? ''])))}>Guardar cambios</button></div>}
       </div>
       <div className="card stack"><h2>Unidades de medida</h2><Unidades /></div>
     </div>

@@ -151,6 +151,11 @@ table.t{width:100%;border-collapse:collapse}
   body *{visibility:hidden}
   .print-area,.print-area *{visibility:visible}
   .print-area{position:absolute;left:0;top:0;width:100%}
+  .print-area .print-area{position:static}
+  .print-break{break-after:page;page-break-after:always;height:1px}
+  /* el modal no puede recortar ni fijar el contenido, o la impresión no se reparte en páginas */
+  .overlay{position:static!important;display:block!important;background:none!important}
+  .modal{overflow:visible!important;max-height:none!important;padding:0!important;max-width:none!important;border-radius:0!important}
   .ticket{border:0;margin:0}
   .no-print{display:none!important}
 }

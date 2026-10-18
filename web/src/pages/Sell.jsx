@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { Modal, Icon, Scanner, useToast, useFmt } from '../ui.jsx';
-import { Comprobantes } from '../Comanda.jsx';
+import { Comprobantes, modoImpresion } from '../Comanda.jsx';
 
 export default function Sell() {
-  const { config, feat } = useAuth();
+  const { config, cocina } = useAuth();
   const { money } = useFmt();
   const toast = useToast();
   const [cats, setCats] = useState([]);
@@ -113,14 +113,14 @@ export default function Sell() {
         onDone={(r) => { setCheckout(false); setDone(r); setCart({}); load(); }} />}
       {done && (
         <Modal title="Venta registrada" onClose={() => setDone(null)}>
-          <Comprobantes data={done} onClose={() => setDone(null)} inicial={feat('comanda') && String(config.COMANDA_AUTO).toUpperCase() === 'TRUE' ? 'comanda' : 'venta'} />
+          <Comprobantes data={done} onClose={() => setDone(null)} auto={modoImpresion(config, cocina)} />
         </Modal>)}
     </div>
   );
 }
 
 function Checkout({ items, subtotal, setQty, onClose, onDone }) {
-  const { config, can, feat } = useAuth();
+  const { config, can, feat, cocina } = useAuth();
   const { money } = useFmt();
   const toast = useToast();
   const [clientes, setClientes] = useState([]);
@@ -196,7 +196,7 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
                 <button onClick={() => setQty(p.ID_Producto, p.qty + 1)}>+</button>
               </div>
               <b style={{ minWidth: 80, textAlign: 'right' }}>{money(p.qty * Number(p.Precio_Venta))}</b>
-              {feat('comanda') && String(p.Va_A_Cocina).toUpperCase() !== 'FALSE' && (
+              {cocina && String(p.Va_A_Cocina).toUpperCase() !== 'FALSE' && (
                 <input className="input" style={{ flexBasis: '100%' }} placeholder="Nota para cocina (ej. sin cebolla)" maxLength={120}
                   value={notas[p.ID_Producto] || ''} onChange={(e) => setNotas({ ...notas, [p.ID_Producto]: e.target.value })} />)}
             </div>))}
@@ -204,10 +204,10 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
         </div>
 
         <div className="formgrid">
-          {feat('comanda') && <label className="f">Referencia (mesa / nombre)
+          {cocina && <label className="f">Referencia (mesa / nombre)
             <input className="input" maxLength={60} placeholder="Mesa 4, Juan…" value={f.referencia} onChange={(e) => set('referencia', e.target.value)} />
           </label>}
-          {feat('comanda') && <label className="f">Nota general para cocina
+          {cocina && <label className="f">Nota general para cocina
             <input className="input" maxLength={200} value={f.notaCocina} onChange={(e) => set('notaCocina', e.target.value)} />
           </label>}
           <label className="f full">Cliente
@@ -255,6 +255,8 @@ function Checkout({ items, subtotal, setQty, onClose, onDone }) {
             <select className="input" value={f.formato} onChange={(e) => set('formato', e.target.value)}>{['Termica 58mm', 'Termica 80mm', 'A4 Carta'].map((o) => <option key={o}>{o}</option>)}</select></label>
         </div>
 
+        {f.estadoPago !== 'Pagado' && <p className="small" style={{ margin: 0, padding: 8, borderRadius: 8, background: 'var(--warnbg, #fff7e0)' }}>
+          Pago {f.estadoPago.toLowerCase()}: la venta queda registrada{cocina ? ' y la comanda va a cocina' : ''}, pero la {f.tipoDocumento.toLowerCase()} se emite cuando recibas el pago, desde Historial → Cobrar.</p>}
         <div className="card">
           <div className="row" style={{ justifyContent: 'space-between' }}><span>Subtotal</span><b>{money(subtotal)}</b></div>
           {desc > 0 && <div className="row" style={{ justifyContent: 'space-between' }}><span>Descuento</span><b>-{money(desc)}</b></div>}

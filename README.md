@@ -182,3 +182,11 @@ Para activarlo: pega el nuevo `licencias/Licencias.gs` en tu hoja de licencias y
 
 ## Versión Supabase (multi-negocio, registro propio, 15 días de prueba)
 Segundo motor opcional para la misma app. Guía completa en [`supabase/LEEME.md`](supabase/LEEME.md). Probado con `npm run test:supabase` y `BACKEND=pg node tools/test-backend.js`.
+
+
+## Ventas pendientes de pago y impresión automática
+- Si una venta se registra con pago **Pendiente** o **Parcial**: se descuenta el stock y la comanda va a cocina, pero **no se emite boleta/factura/ticket**. Se imprime un "pedido por cobrar" sin folio.
+- Para cobrar: **Historial → Ventas** (filtro "Solo por cobrar") → abrir la venta → **Cobrar y emitir…**. Ahí eliges método de pago y documento; se marca pagada y se emite el comprobante con su folio.
+- **Configuración → Al confirmar una venta**: *Preguntar*, *Comanda y comprobante* (salen los dos de una vez, comanda primero), *Solo comprobante*, *Solo comanda* o *No imprimir*. El interruptor *Mi negocio usa cocina* apaga toda la parte de comanda.
+- En **Historial** cada venta se reimprime por separado (comprobante o comanda), nunca los dos juntos.
+- Un navegador no puede elegir impresoras en silencio: "Comanda y comprobante" sale en una sola impresión por la misma impresora. Si la cocina tiene otra impresora, usa *Preguntar* o *Solo comprobante* y reimprime la comanda con su pestaña.

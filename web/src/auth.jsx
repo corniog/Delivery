@@ -72,8 +72,10 @@ export function AuthProvider({ children }) {
     return true;
   };
   const feat = (f) => !state.funciones || state.funciones.indexOf(f) >= 0;   // null = todas
+  // Cocina activa = la función del plan + el interruptor del negocio en Configuración (por defecto activa)
+  const cocina = feat('comanda') && String(state.config.COMANDA_ACTIVA ?? 'TRUE').toUpperCase() !== 'FALSE';
   const can = (mod, act = 'Ver') => !!(state.perms[mod] && state.perms[mod][act]);
   const isDelivery = !!(state.user && state.user.ID_Delivery);
 
-  return <Ctx.Provider value={{ ...state, login, registrar, logout, refresh, recheck, can, feat, isDelivery }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ...state, login, registrar, logout, refresh, recheck, can, feat, cocina, isDelivery }}>{children}</Ctx.Provider>;
 }

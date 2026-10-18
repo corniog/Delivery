@@ -1222,18 +1222,43 @@ begin
       'Monto_Delivery', costo_del, 'Estado', 'Asignado', 'Notas', tj(dd, 'Notas'), 'Usuario_Asigna', c.email);
     perform ins_row(c.tid, 'Servicios_Delivery', servicio);
   end if;
-  imp := nj(cfg, 'IMPUESTO_PORC');
-  neto := case when imp > 0 then r2(total / (1 + imp)) else total end;
-  doc := jsonb_build_object('ID_Documento', nuevo_id('DOC'), 'ID_Venta', idv, 'Tipo', tipo_doc, 'Folio', sig_num(c.tid, 'doc_' || tipo_doc)::text,
-    'Fecha', ahora, 'Neto', neto, 'Impuesto', r2(total - neto), 'Total', total,
-    'Formato', coalesce(nullif(d ->> 'formato', ''), nullif(cfg ->> 'FORMATO_DOC_DEFECTO', ''), 'Termica 80mm'), 'PDF_URL', '');
-  perform ins_row(c.tid, 'Documentos', doc);
-  perform audit_(c, 'Ventas', 'Crear', idv, 'Total ' || trim_scale(total)::text);
+  -- El documento (ticket/boleta/factura) solo se emite si la venta está pagada; si no, se emite después con pagarVenta.
+  if venta ->> 'Estado_Pago' = 'Pagado' then doc := emitir_doc(c, cfg, idv, tipo_doc, total, ahora, d ->> 'formato'); end if;
+  perform audit_(c, 'Ventas', 'Crear', idv, 'Total ' || trim_scale(total)::text || case when doc is null then ' (pago ' || (venta ->> 'Estado_Pago') || ')' else '' end);
   return jsonb_build_object('venta', get_row(c.tid, 'Ventas', 'ID_Venta', idv),
     'detalle', rows_json(c.tid, 'Detalle_Venta', format('"ID_Venta" = %L', idv)),
     'servicio', case when servicio is null then null else get_row(c.tid, 'Servicios_Delivery', 'ID_Servicio', servicio ->> 'ID_Servicio') end,
-    'documento', get_row(c.tid, 'Documentos', 'ID_Documento', doc ->> 'ID_Documento'),
+    'documento', case when doc is null then null else get_row(c.tid, 'Documentos', 'ID_Documento', doc ->> 'ID_Documento') end,
     'cliente', case when tj(d, 'ID_Cliente') <> '' then get_row(c.tid, 'Clientes', 'ID_Cliente', d ->> 'ID_Cliente') else null end);
+end $$;
+
+create or replace function emitir_doc(c ctx_t, cfg jsonb, idv text, tipo text, total numeric, ahora text, formato text) returns jsonb language plpgsql as $$
+declare imp numeric := nj(cfg, 'IMPUESTO_PORC'); neto numeric; doc jsonb;
+begin
+  neto := case when imp > 0 then r2(total / (1 + imp)) else total end;
+  doc := jsonb_build_object('ID_Documento', nuevo_id('DOC'), 'ID_Venta', idv, 'Tipo', tipo, 'Folio', sig_num(c.tid, 'doc_' || tipo)::text,
+    'Fecha', ahora, 'Neto', neto, 'Impuesto', r2(total - neto), 'Total', total,
+    'Formato', coalesce(nullif(formato, ''), nullif(cfg ->> 'FORMATO_DOC_DEFECTO', ''), 'Termica 80mm'), 'PDF_URL', '');
+  perform ins_row(c.tid, 'Documentos', doc);
+  return doc;
+end $$;
+
+-- Cobrar una venta pendiente: la marca pagada y emite su boleta / factura / ticket.
+create or replace function a_pagar_venta(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare v jsonb; tipo text; cfg jsonb := cfg_all(c.tid); doc jsonb;
+begin
+  perform need_(c, 'Ventas', 'Crear');
+  v := get_row(c.tid, 'Ventas', 'ID_Venta', tj(d, 'ID_Venta'));
+  if v is null then perform fail_('Venta no encontrada'); end if;
+  if v ->> 'Estado' = 'Anulada' then perform fail_('La venta está anulada'); end if;
+  if v ->> 'Estado_Pago' = 'Pagado' then perform fail_('La venta ya está pagada'); end if;
+  tipo := case when tj(d, 'tipoDocumento') in ('Ticket', 'Boleta', 'Factura') then d ->> 'tipoDocumento' else coalesce(nullif(v ->> 'Tipo_Documento', ''), 'Ticket') end;
+  update "Ventas" set "Estado_Pago" = 'Pagado', "Tipo_Documento" = tipo,
+    "Metodo_Pago" = coalesce(nullif(d ->> 'metodoPago', ''), "Metodo_Pago")
+  where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta';
+  doc := emitir_doc(c, cfg, d ->> 'ID_Venta', tipo, (v ->> 'Total')::numeric, ahora_txt(c.tz), d ->> 'formato');
+  perform audit_(c, 'Ventas', 'Editar', d ->> 'ID_Venta', 'Pago recibido (' || coalesce(nullif(d ->> 'metodoPago', ''), v ->> 'Metodo_Pago') || '), ' || tipo || ' N° ' || (doc ->> 'Folio'));
+  return a_detalle_venta(c, d);
 end $$;
 
 create or replace function a_anular_venta(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
@@ -1605,7 +1630,7 @@ begin
     delete from sesiones where token_hash = hash_token(token);
     return jsonb_build_object('ok', true, 'data', true);
   end if;
-  if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','crearVenta','anularVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
+  if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','crearVenta','anularVenta','pagarVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
     perform fail_('Acción desconocida: ' || accion);
   end if;
   l := lic_(c.tid);
@@ -1614,7 +1639,7 @@ begin
   if f is not null then perform needfeat_(c, f); end if;
   if accion in ('listar', 'crear', 'actualizar', 'eliminar') and tabla_funcion(tj(d, 'tabla')) is not null then perform needfeat_(c, tabla_funcion(d ->> 'tabla')); end if;
   if accion = 'crearVenta' and tj(d, 'tipoEntrega') = 'Delivery' then perform needfeat_(c, 'delivery'); end if;
-  if accion in ('crear', 'actualizar', 'eliminar', 'ajustarStock', 'crearVenta', 'anularVenta', 'servicioEstado', 'crearCompra', 'recibirCompra', 'anularCompra',
+  if accion in ('crear', 'actualizar', 'eliminar', 'ajustarStock', 'crearVenta', 'anularVenta', 'pagarVenta', 'servicioEstado', 'crearCompra', 'recibirCompra', 'anularCompra',
                 'guardarConfig', 'usuariosCrear', 'usuariosActualizar', 'usuariosPassword', 'permisosGuardar', 'marcarAlertas') then
     perform pg_advisory_xact_lock(hashtextextended(c.tid::text, 0));
   end if;
@@ -1628,6 +1653,7 @@ begin
     when 'ajustarStock' then a_ajustar_stock(c, d)
     when 'crearVenta' then a_crear_venta(c, d)
     when 'anularVenta' then a_anular_venta(c, d)
+    when 'pagarVenta' then a_pagar_venta(c, d)
     when 'listarVentas' then a_listar_ventas(c, d)
     when 'detalleVenta' then a_detalle_venta(c, d)
     when 'misServicios' then a_mis_servicios(c, d)
