@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:escpos": "node ../tools/test-escpos.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.2.2",

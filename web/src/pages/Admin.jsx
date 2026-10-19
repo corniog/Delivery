@@ -1,3 +1,4 @@
+import Impresoras from './Impresoras.jsx';
 import { useEffect, useState, useCallback } from 'react';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
@@ -101,8 +102,9 @@ export function Configuracion() {
           </select>
         </label></>}
         <div className="card stack" style={{ background: 'transparent' }}>
-          <b>Impresoras</b>
-          <p className="muted small" style={{ margin: 0 }}>El navegador no deja elegir la impresora sin mostrar el diálogo de impresión, así que aquí anotas cuál es cuál y la app te lo recuerda al imprimir: en el diálogo, elige esa impresora.</p>
+          <b>Impresoras de este dispositivo</b>
+          <Impresoras />
+          <p className="muted small" style={{ margin: 0 }}>Para imprimir con el diálogo del navegador, anota aquí cuál es cuál y la app te lo recuerda.</p>
           <div className="formgrid">
             {feat('comanda') && <label className="f">Impresora de la comanda (cocina)<input className="input" disabled={!edit} placeholder="Ej: EPSON cocina" value={v.IMPRESORA_COMANDA ?? ''} onChange={(e) => setV({ ...v, IMPRESORA_COMANDA: e.target.value })} /></label>}
             <label className="f">Impresora del comprobante (caja)<input className="input" disabled={!edit} placeholder="Ej: EPSON TM-T20II caja" value={v.IMPRESORA_COMPROBANTE ?? ''} onChange={(e) => setV({ ...v, IMPRESORA_COMPROBANTE: e.target.value })} /></label>

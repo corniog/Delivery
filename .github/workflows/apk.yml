@@ -111,6 +111,11 @@ jobs:
           extra = ('    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n'
                    '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n'
                    '    <uses-permission android:name="android.permission.CAMERA" />\n'
+                   '    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />\n'
+                   '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />\n'
+                   '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n'
+                   '    <uses-feature android:name="android.hardware.usb.host" android:required="false" />\n'
+                   '    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />\n'
                    '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
                    '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n')
           s = s.replace('</manifest>', extra + '</manifest>')
@@ -125,7 +130,7 @@ jobs:
           appid = json.load(open('capacitor.config.json'))['appId']
           d = os.path.join('android/app/src/main/java', *appid.split('.'))
           os.makedirs(d, exist_ok=True)
-          for src, dst in (('NativePrintPlugin.java.txt', 'NativePrintPlugin.java'), ('MainActivity.java.txt', 'MainActivity.java')):
+          for src, dst in (('NativePrintPlugin.java.txt', 'NativePrintPlugin.java'), ('EscPosPlugin.java.txt', 'EscPosPlugin.java'), ('MainActivity.java.txt', 'MainActivity.java')):
               code = open('../tools/android/' + src).read().replace('__APPID__', appid)
               open(os.path.join(d, dst), 'w').write(code)
           print('Plugin de impresión instalado en', d)

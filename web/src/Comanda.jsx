@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './auth.jsx';
-import { fdt, imprimir, useToast } from './ui.jsx';
+import { fdt, imprimir, useToast, useFmt } from './ui.jsx';
+import { comprobante as bytesComprobante, comanda as bytesComanda } from './escpos.js';
+import { paraRol, enviar } from './impresoras.js';
 import Ticket, { usePrintCfg } from './Ticket.jsx';
 
 // Ticket de cocina: sin precios, con referencia, notas y solo los productos marcados "Va a cocina".
@@ -50,8 +52,11 @@ const esNativa = () => { const cap = window.Capacitor; return !!(cap && typeof c
 // auto: 'ambos' | 'venta' | 'comanda' → se envía a imprimir solo al abrir. "Ambos" son DOS impresiones separadas, una tras otra
 // (comanda y luego comprobante), cada una con su propio ticket y su propio diálogo de impresora.
 export function Comprobantes({ data, extra, onClose, inicial, auto }) {
-  const { cocina, config } = useAuth();
+  const { cocina, config, brand } = useAuth();
+  const { money } = useFmt();
   const toast = useToast();
+  const [conDialogo, setConDialogo] = useState(false);   // si falla la impresora directa, se puede usar el diálogo
+  const [enviado, setEnviado] = useState('');
   const plan = auto === 'ambos' ? ['comanda', 'venta'] : auto === 'comanda' ? ['comanda'] : auto === 'venta' ? ['venta'] : [];
   const [tab, setTab] = useState(plan[0] || inicial || 'venta');
   const [siguiente, setSiguiente] = useState(null);   // en la APK cada impresión necesita su propio toque
@@ -59,10 +64,29 @@ export function Comprobantes({ data, extra, onClose, inicial, auto }) {
   const pendiente = data.venta.Estado_Pago !== 'Pagado';
   const nombre = (t) => (t === 'comanda' ? 'Comanda ' : 'Venta ') + data.venta.ID_Venta;
   const impresora = (t) => (t === 'comanda' ? config.IMPRESORA_COMANDA : config.IMPRESORA_COMPROBANTE) || '';
-  const imprimirTab = async (t) => { setTab(t); await esperar(600); await imprimir(nombre(t)); };
+  const rolDe = (t) => (t === 'comanda' ? 'comanda' : 'comprobante');
+  const directas = (t) => (conDialogo ? [] : paraRol(rolDe(t)));
+  // Impresión directa a las impresoras guardadas (sin diálogo, con corte). Devuelve false si no hay ninguna para ese documento.
+  const imprimirDirecto = async (t) => {
+    const l = directas(t);
+    if (!l.length) return false;
+    const ctx = { config, brand, money, fecha: fdt };
+    const fallas = [];
+    await Promise.all(l.map(async (p) => {
+      try { await enviar(p, (t === 'comanda' ? bytesComanda : bytesComprobante)(data, ctx, p)); } catch (e) { fallas.push(`${p.nombre}: ${e.message}`); }
+    }));
+    if (fallas.length) throw new Error(fallas.join(' · '));
+    setEnviado((x) => (x ? x + ' y ' : 'Enviado a ') + l.map((p) => p.nombre).join(', '));
+    return true;
+  };
+  const imprimirTab = async (t) => {
+    if (await imprimirDirecto(t)) return;
+    setTab(t); await esperar(600); await imprimir(nombre(t));
+  };
   const secuencia = async (lista) => {
-    setOcupado(true);
+    setOcupado(true); setEnviado('');
     try {
+      if (lista.length > 1 && lista.every((t) => directas(t).length)) { await Promise.all(lista.map(imprimirDirecto)); setSiguiente(null); return; }   // un solo toque: todo a la vez
       for (let i = 0; i < lista.length; i++) {
         await imprimirTab(lista[i]);
         if (i < lista.length - 1) {
@@ -71,7 +95,7 @@ export function Comprobantes({ data, extra, onClose, inicial, auto }) {
         }
       }
       setSiguiente(null);
-    } catch (e) { toast(e.message, true); } finally { setOcupado(false); }
+    } catch (e) { toast(e.message, true); setEnviado(''); } finally { setOcupado(false); }
   };
   const hecho = useRef(false);
   useEffect(() => {
@@ -90,6 +114,8 @@ export function Comprobantes({ data, extra, onClose, inicial, auto }) {
       </div>
       {tab === 'venta' && <Ticket data={data} />}
       {tab === 'comanda' && <Comanda data={data} />}
+      {enviado && <p className="small no-print" style={{ margin: 0 }}>✓ {enviado}</p>}
+      {paraRol(rolDe(tab)).length > 0 && !conDialogo && <p className="muted small no-print" style={{ margin: 0 }}>Se imprime directo, sin diálogo. <button className="btn sm" onClick={() => setConDialogo(true)}>Usar el diálogo de impresión</button></p>}
       <p className="muted small no-print">{imp ? <>Impresora: <b>{imp}</b>. </> : null}{tab === 'comanda' ? 'En el diálogo de impresión elige la impresora de cocina.' : 'En el diálogo de impresión elige la impresora de caja.'}</p>
       <div className="row no-print" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
         {extra}

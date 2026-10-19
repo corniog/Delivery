@@ -50,3 +50,6 @@ Se ejecutan en un Postgres real embebido (PGlite). No sustituye probar con tu pr
 
 ## Regenerar
 `python3 tools/generar_esquema.py` (esquema) y `python3 tools/generar_supabase.py` (SQL). Si cambias columnas, vuelve a pegar `TODO_SUPABASE.sql`: crea lo que falta sin tocar los datos (las columnas nuevas de tablas existentes hay que agregarlas con `alter table`).
+
+## Crear tu cuenta de dueño sin registrarte
+Abre `supabase/CREAR_DUENO.sql`, cambia correo/contraseña/nombre/negocio, pégalo en **SQL Editor → Run**. Crea el negocio con plan PREMIUM y vencimiento 2035-12-31; dentro del archivo están los comandos para cambiar la fecha, el plan o suspender.
