@@ -1,0 +1,8 @@
+{
+  // Publicación en Cloudflare (Workers con archivos estáticos). La web se compila en web/dist.
+  "name": "sistema-venta-y-delivery",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./web/dist"
+  }
+}
