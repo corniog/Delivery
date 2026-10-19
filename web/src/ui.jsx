@@ -174,12 +174,46 @@ export const Brand = ({ size = 40 }) => {
     : <div className="logo-ph" style={{ width: size, height: size }}>{(brand.NOMBRE_NEGOCIO || 'N').slice(0, 1).toUpperCase()}</div>;
 };
 
-/* ---------- Imprimir (en la APK usa el diálogo nativo de Android) ---------- */
+/* ---------- Imprimir ---------- */
+// Imprime SOLO el ticket visible (.print-area): lo copia a #print-root, mide su alto real y fija la hoja a ese tamaño
+// (ancho del papel × alto del ticket, sin márgenes). Así sale una sola hoja, del tamaño del rollo, sin hojas en blanco.
+const PX_MM = 96 / 25.4;
+function prepararHoja() {
+  document.getElementById('print-root')?.remove();
+  document.getElementById('print-page')?.remove();
+  const src = document.querySelector('.print-area');
+  if (!src) throw new Error('No hay nada para imprimir');
+  const fmt = src.getAttribute('data-fmt') || 'Termica 80mm';
+  const fin = Number(src.getAttribute('data-fin') || 15);
+  const termica = !fmt.includes('A4');
+  const paper = fmt.includes('58') ? 58 : 80, ancho = fmt.includes('58') ? 48 : 72;
+  const root = document.createElement('div');
+  root.id = 'print-root';
+  const copia = src.cloneNode(true);
+  const t = copia.querySelector('.ticket');
+  copia.style.cssText = 'position:static;width:auto';
+  if (t && termica) { t.style.cssText += `;width:${ancho}mm;max-width:none;margin:0 auto;padding:2mm 1mm ${fin}mm;box-sizing:border-box;border:0`; root.style.width = paper + 'mm'; }
+  root.appendChild(copia);
+  document.body.appendChild(root);
+  const css = document.createElement('style');
+  css.id = 'print-page';
+  if (termica) {
+    const h = Math.ceil(root.getBoundingClientRect().height / PX_MM) + 1;
+    css.textContent = `@page{size:${paper}mm ${h}mm;margin:0}`;
+  } else css.textContent = '@page{size:A4;margin:10mm}';
+  document.head.appendChild(css);
+  return root;
+}
+const limpiarHoja = () => { document.getElementById('print-root')?.remove(); document.getElementById('print-page')?.remove(); };
+
 export async function imprimir(nombre = 'Documento') {
   const cap = window.Capacitor;
   const native = cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform();
-  if (!native) { window.print(); return; }
+  prepararHoja();
+  await new Promise((r) => setTimeout(r, 200));   // deja cargar el logo
+  if (!native) { try { window.print(); } finally { limpiarHoja(); } return; }
   const plugin = cap.Plugins && cap.Plugins.NativePrint;
-  if (!plugin) throw new Error('Esta versión de la APK no puede imprimir. Instala la APK más reciente.');
+  if (!plugin) { limpiarHoja(); throw new Error('Esta versión de la APK no puede imprimir. Instala la APK más reciente.'); }
   await plugin.print({ name: nombre });
+  setTimeout(limpiarHoja, 120000);   // Android arma el documento cuando el usuario acepta el diálogo
 }

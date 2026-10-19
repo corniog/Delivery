@@ -1,16 +1,13 @@
 import { useAuth } from './auth.jsx';
 import { useFmt, fdt } from './ui.jsx';
 
-// Estilos de impresión según el formato. Térmica: sin márgenes de página, ancho imprimible real (80 mm → 72 mm, 58 mm → 48 mm)
-// y un espacio al final (MARGEN_INFERIOR_MM) para que el papel avance hasta pasar la cuchilla y el ticket salga completo.
-export function PrintStyle({ fmt }) {
+// Datos de impresión del formato: la hoja se arma al imprimir (ver imprimir() en ui.jsx) con el ancho real del papel
+// y la altura exacta del ticket, para que salga UNA sola hoja. MARGEN_INFERIOR_MM = espacio al final para que el papel avance hasta la cuchilla.
+export function usePrintCfg(fmt) {
   const { config } = useAuth();
-  const termica = !fmt.includes('A4');
-  const fin = Math.max(0, Math.min(60, Number(config.MARGEN_INFERIOR_MM === undefined || config.MARGEN_INFERIOR_MM === '' ? 15 : config.MARGEN_INFERIOR_MM) || 0));
-  const w = fmt.includes('58') ? 48 : 72;
-  return <style>{termica
-    ? `@page{size:${fmt.includes('58') ? 58 : 80}mm auto;margin:0}@media print{.ticket{width:${w}mm!important;max-width:none!important;padding:2mm 1mm ${fin}mm!important;box-sizing:border-box;border:0!important}}`
-    : '@page{size:A4;margin:10mm}'}</style>;
+  const raw = config.MARGEN_INFERIOR_MM;
+  const fin = Math.max(0, Math.min(60, Number(raw === undefined || raw === '' ? 15 : raw) || 0));
+  return { 'data-fmt': fmt, 'data-fin': fin };
 }
 
 // Comprobante interno. Formatos: térmica 58 mm, térmica 80 mm o A4/Carta. Imprime con el diálogo del navegador.
@@ -21,11 +18,11 @@ export default function Ticket({ data, formato }) {
   const fmt = formato || (documento && documento.Formato) || config.FORMATO_DOC_DEFECTO || 'Termica 80mm';
   const cls = fmt.includes('58') ? 't58' : fmt.includes('A4') ? 'a4' : '';
   const tipo = (documento && documento.Tipo) || venta.Tipo_Documento || 'Ticket';
+  const pc = usePrintCfg(fmt);
   const pendiente = !documento || venta.Estado_Pago !== 'Pagado';  // aún no se emite boleta/factura
   return (
     <>
-      <PrintStyle fmt={fmt} />
-      <div className="print-area">
+      <div className="print-area" {...pc}>
         <div className={'ticket ' + cls}>
           {brand.LOGO && <img className="tl" src={brand.LOGO} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
           <h3>{brand.NOMBRE_NEGOCIO}</h3>

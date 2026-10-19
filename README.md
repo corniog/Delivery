@@ -192,3 +192,6 @@ Segundo motor opcional para la misma app. Guía completa en [`supabase/LEEME.md`
 - "Comanda y comprobante" son **dos impresiones separadas**, una tras otra (comanda y luego comprobante). Si el pago está pendiente solo sale la comanda. En la APK cada impresión se confirma con su botón.
 - Un navegador no puede elegir impresora en silencio: en Configuración se anota el nombre de la impresora de cocina y de caja y la app lo recuerda en cada impresión. Impresión directa sin diálogo requiere un programa auxiliar en el PC (por ejemplo QZ Tray) o Chrome con `--kiosk-printing` (solo imprime en la impresora predeterminada).
 - Térmicas: sin márgenes de página, ancho imprimible 72 mm (80 mm) / 48 mm (58 mm) y un *espacio al final del ticket* ajustable en Configuración para que el papel avance hasta pasar la cuchilla.
+
+### Impresión: una sola hoja del tamaño del rollo
+Al imprimir, la app copia solo el ticket a un contenedor aparte (`#print-root`), mide su alto real y fija la hoja en `ancho del papel × alto del ticket` sin márgenes (`@page`). El resto de la pantalla no ocupa hoja, así que sale **una** hoja por impresión (antes salían varias en blanco). Ver `imprimir()` en `web/src/ui.jsx`.

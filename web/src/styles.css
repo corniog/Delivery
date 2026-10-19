@@ -147,15 +147,12 @@ table.t{width:100%;border-collapse:collapse}
 .ticket hr{border:0;border-top:1px dashed #000;margin:7px 0}
 .ticket .l{display:flex;justify-content:space-between;gap:8px}
 .ticket .c{text-align:center}
+/* Impresión: se imprime una copia del ticket en #print-root (ver imprimir() en ui.jsx); el resto de la app no ocupa hoja. */
+#print-root{position:fixed;left:-10000px;top:0;visibility:hidden;background:#fff}
 @media print{
-  body *{visibility:hidden}
-  .print-area,.print-area *{visibility:visible}
-  .print-area{position:absolute;left:0;top:0;width:100%}
-  .print-area .print-area{position:static}
-  /* el modal no puede recortar ni fijar el contenido, o la impresión no se reparte en páginas */
-  .overlay{position:static!important;display:block!important;background:none!important}
-  .modal{overflow:visible!important;max-height:none!important;padding:0!important;max-width:none!important;border-radius:0!important}
-  .ticket{border:0;margin:0}
+  html,body{margin:0!important;padding:0!important;background:#fff!important;height:auto!important}
+  body>*:not(#print-root){display:none!important}
+  #print-root{position:static!important;left:auto!important;visibility:visible!important}
   .no-print{display:none!important}
 }
 

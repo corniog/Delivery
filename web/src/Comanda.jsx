@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './auth.jsx';
 import { fdt, imprimir, useToast } from './ui.jsx';
-import Ticket, { PrintStyle } from './Ticket.jsx';
+import Ticket, { usePrintCfg } from './Ticket.jsx';
 
 // Ticket de cocina: sin precios, con referencia, notas y solo los productos marcados "Va a cocina".
 export function Comanda({ data }) {
@@ -9,11 +9,11 @@ export function Comanda({ data }) {
   const { venta, detalle } = data;
   const fmt = config.FORMATO_COMANDA || config.FORMATO_DOC_DEFECTO || 'Termica 80mm';
   const cls = fmt.includes('58') ? 't58' : fmt.includes('A4') ? 'a4' : '';
+  const pc = usePrintCfg(fmt);
   const lineas = detalle.filter((d) => String(d.Va_A_Cocina).toUpperCase() !== 'FALSE');
   return (
     <>
-      <PrintStyle fmt={fmt} />
-      <div className="print-area">
+      <div className="print-area" {...pc}>
         <div className={'ticket ' + cls} style={{ fontSize: '1.1em' }}>
           <h3>COMANDA</h3>
           <div className="c"><b>{venta.Tipo_Entrega}</b></div>
