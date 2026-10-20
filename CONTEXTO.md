@@ -23,6 +23,7 @@
 ## APK (Capacitor) — `.github/workflows/apk.yml` (Actions → Crear APK)
 - Modos: **en vivo** (carga la URL publicada; la que usa el usuario) y empaquetada. Entradas: nombre_app, url_api, url_supabase, clave_supabase, modo, id_app.
 - Hay que regenerar la APK solo cuando cambia código nativo o la URL (ej. al pasar al dominio `app.atlanthes.cl`). La APK con impresión directa ESC/POS es nueva → regenerar una vez.
+- Nueva entrada **url_web** en el workflow: dirección de la web para el modo en vivo (ej. `https://app.atlanthes.cl`; si se deja vacía usa GitHub Pages, que NO sirve con repo privado). Usar siempre la dirección de Cloudflare.
 - Plugins nativos: `NativePrintPlugin` (diálogo de impresión Android) y `EscPosPlugin` (Bluetooth/USB/red directo, `tools/android/*.java.txt`).
 
 ## Impresión
@@ -32,8 +33,15 @@
 - Ventas con pago pendiente: se imprime solo la comanda; luego "Cobrar y emitir" en Historial (acción `pagarVenta`). Estados: Pendiente / Confirmada.
 - Config del negocio: COMANDA_ACTIVA, IMPRESION_AL_VENDER, IMPRESORA_COMANDA/COMPROBANTE (recordatorios), MARGEN_INFERIOR_MM.
 
+## Dominio (estado)
+- Dominio `atlanthes.cl` comprado en **NIC Chile** (no está en Cloudflare). Para usar `app.atlanthes.cl` hay dos caminos: (A) cambiar los servidores de nombres (NS) de NIC Chile a los de Cloudflare (agregar el sitio atlanthes.cl en Cloudflare, plan gratis) y luego Worker → Settings → Domains & Routes → Add → Custom domain; (B) dejar DNS en NIC y crear un CNAME `app` hacia el workers.dev (menos fiable con Workers). Se recomienda A.
+- Variable de build opcional `VITE_SITE_URL` (Cloudflare → Worker → Settings → Variables and Secrets / Build) para la imagen OG; por defecto `https://app.atlanthes.cl`. No hace falta tocarla si se usa ese dominio.
+
 ## Login / marca
 - El nombre del negocio en el login sale del código guardado en el dispositivo (`localStorage negocio` o `?n=codigo`). Botón **«Salir completamente»** (login y menú) olvida el negocio y vuelve a pantalla neutra «App Negocio».
+
+## Historial de cambios recientes (20-oct-2026)
+1. Salir completamente (login + menú). 2. Imagen OG (`web/public/og.png`, metas en `web/index.html`, `vite.config.js` plugin og-site). 3. Guía de dominio con NIC Chile. 4. CONTEXTO.md en repo y en el Proyecto (leerlo al iniciar chat nuevo; actualizarlo cuando el usuario diga «actualiza el CONTEXTO»). 5. APK workflow con `url_web`.
 
 ## Pruebas / herramientas
 - `tools/test-backend.js`, `test-supabase.js` (PGlite), `test-licencia.js`, `test-escpos.mjs`; dev servers `tools/dev-server.js` (:8787, `DEV_LICENCIA=0`), `vite preview` (:4173). Para parar: `fuser -k 8787/tcp` (no usar pkill: mata la shell).

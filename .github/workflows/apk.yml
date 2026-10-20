@@ -21,6 +21,9 @@ on:
       clave_supabase:
         description: 'SOLO con Supabase: clave publishable (sb_publishable_…). Nunca la secret'
         default: ''
+      url_web:
+        description: 'Dirección de tu web publicada, para el modo en_vivo (ej: https://app.atlanthes.cl). Vacío = GitHub Pages'
+        default: ''
       id_app:
         description: 'ID único de la app, minúsculas y puntos (ej: cl.minegocio.delivery). No lo cambies después.'
         default: 'cl.corniog.negocio'
@@ -49,7 +52,7 @@ jobs:
           SBKEY: ${{ inputs.clave_supabase }}
           IDAPP: ${{ inputs.id_app }}
           MODO: ${{ inputs.modo }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          PAGES_URL: ${{ inputs.url_web != '' && format('{0}/', inputs.url_web) || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
         run: |
           pip install pillow
           python3 - <<'PY'
@@ -73,7 +76,7 @@ jobs:
           if os.environ.get('MODO', 'en_vivo') == 'en_vivo':
               # La APK abre la web publicada en GitHub Pages: cada cambio llega solo, sin reinstalar
               from urllib.parse import quote
-              start = os.environ['PAGES_URL'] + (('?sb=' + quote(sbu, safe='') + '&sbk=' + quote(sbk, safe='')) if sbu else (('?api=' + quote(url, safe='')) if url else ''))
+              start = os.environ['PAGES_URL'].rstrip('/') + '/' + (('?sb=' + quote(sbu, safe='') + '&sbk=' + quote(sbk, safe='')) if sbu else (('?api=' + quote(url, safe='')) if url else ''))
               c['server']['url'] = start
               json.dump(c, open('capacitor.config.json', 'w'), ensure_ascii=False, indent=2)
               print('Modo en vivo ->', start)
