@@ -61,6 +61,14 @@ export function AuthProvider({ children }) {
     window.location.hash = '#/';
     await loadPublic();
   };
+  // "Salir completamente": además de cerrar sesión, olvida el negocio guardado en este dispositivo (vuelve a la pantalla inicial neutra)
+  const salirCompleto = async () => {
+    try { if (getToken()) await call('logout'); } catch { /* ignorar */ }
+    setToken(null); setNegocio(null);
+    try { const u = new URL(window.location.href); u.searchParams.delete('n'); u.hash = '#/'; window.history.replaceState(null, '', u.toString()); } catch { /* ignorar */ }
+    setState((s) => ({ ...s, brand: { NOMBRE_NEGOCIO: 'App Negocio', LOGO: '' } }));
+    await loadPublic();
+  };
   const refresh = async () => applyMe(await call('me'));
   // Botón "Reintentar" de la pantalla de bloqueo: vuelve a consultar la licencia
   const recheck = async () => {
@@ -77,5 +85,5 @@ export function AuthProvider({ children }) {
   const can = (mod, act = 'Ver') => !!(state.perms[mod] && state.perms[mod][act]);
   const isDelivery = !!(state.user && state.user.ID_Delivery);
 
-  return <Ctx.Provider value={{ ...state, login, registrar, logout, refresh, recheck, can, feat, cocina, isDelivery }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ...state, login, registrar, logout, salirCompleto, refresh, recheck, can, feat, cocina, isDelivery }}>{children}</Ctx.Provider>;
 }

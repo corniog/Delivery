@@ -7,6 +7,8 @@ export default defineConfig({
   define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC') },
   plugins: [
     react(),
+    // Dirección pública para la imagen al compartir el link (cámbiala con la variable VITE_SITE_URL)
+    { name: 'og-site', transformIndexHtml: (h) => h.replace(/__SITE__/g, (process.env.VITE_SITE_URL || 'https://app.atlanthes.cl').replace(/\/+$/, '')) },
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {

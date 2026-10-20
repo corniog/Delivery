@@ -31,7 +31,7 @@ const NAV = [
 ];
 
 function Shell() {
-  const { user, can, feat, isDelivery, brand, logout } = useAuth();
+  const { user, can, feat, isDelivery, brand, logout, salirCompleto } = useAuth();
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   const items = NAV.filter((n) => n.show(can, isDelivery, feat));
@@ -42,7 +42,7 @@ function Shell() {
       <aside className="sidebar">
         <div className="brand"><Brand /><div><b>{brand.NOMBRE_NEGOCIO}</b><span className="muted small">{user.Nombre}</span></div></div>
         <nav className="nav" style={{ flex: 1 }}>{items.map((n) => <Link key={n.to} n={n} />)}</nav>
-        <nav className="nav"><button onClick={logout}><Icon n="out" />Cerrar sesión</button></nav>
+        <nav className="nav"><button onClick={logout}><Icon n="out" />Cerrar sesión</button><button onClick={salirCompleto}><Icon n="out" />Salir completamente</button></nav>
       </aside>
       <header className="topbar"><Brand size={32} /><b className="grow">{brand.NOMBRE_NEGOCIO}</b></header>
       <main className="main">
@@ -71,7 +71,7 @@ function Shell() {
       </nav>
       {menu && (
         <Modal title="Menú" onClose={() => setMenu(false)}>
-          <nav className="nav">{items.map((n) => <Link key={n.to} n={n} onClick={() => setMenu(false)} />)}<button onClick={logout}><Icon n="out" />Cerrar sesión</button></nav>
+          <nav className="nav">{items.map((n) => <Link key={n.to} n={n} onClick={() => setMenu(false)} />)}<button onClick={logout}><Icon n="out" />Cerrar sesión</button><button onClick={salirCompleto}><Icon n="out" />Salir completamente</button></nav>
         </Modal>)}
       <span hidden>{loc.pathname}</span>
     </div>

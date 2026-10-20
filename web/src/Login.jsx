@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from './auth.jsx';
-import { getApiUrl, setApiUrl, esSupabase, getSupabase, setSupabase } from './api.js';
+import { getApiUrl, setApiUrl, esSupabase, getSupabase, setSupabase, getNegocio } from './api.js';
 
 export default function Login() {
-  const { login, registrar, brand } = useAuth();
+  const { login, registrar, brand, salirCompleto } = useAuth();
   const sb = esSupabase();
   const [modo, setModo] = useState('entrar');
   const [r, setR] = useState({ negocio: '', nombre: '', email: '', password: '' });
@@ -32,6 +32,7 @@ export default function Login() {
         {brand.LOGO && !logoBad ? <img className="logo" src={brand.LOGO} alt="" onError={() => setLogoBad(true)} /> : null}
         <h1 style={{ textAlign: 'center' }}>{brand.NOMBRE_NEGOCIO}</h1>
         <p className="muted" style={{ textAlign: 'center', margin: 0 }}>Inicia sesión para continuar</p>
+        {sb && getNegocio() && <button type="button" className="btn sm" style={{ alignSelf: 'center' }} onClick={salirCompleto}>Salir completamente (olvidar este negocio)</button>}
         {modo === 'crear' ? (
           <form className="stack" onSubmit={alta}>
             <p className="muted" style={{ textAlign: 'center', margin: 0 }}>Crea tu negocio: 15 días de prueba con todas las funciones</p>
