@@ -33,6 +33,10 @@
 - Ventas con pago pendiente: se imprime solo la comanda; luego "Cobrar y emitir" en Historial (acción `pagarVenta`). Estados: Pendiente / Confirmada.
 - Config del negocio: COMANDA_ACTIVA, IMPRESION_AL_VENDER, IMPRESORA_COMANDA/COMPROBANTE (recordatorios), MARGEN_INFERIOR_MM.
 
+## Impresión: estado real (21-oct-2026)
+- Probado por el usuario: la app en vivo + APK nueva funcionan «100%». Impresora Bluetooth detectada: **MPT-II** (58 mm, comandas).
+- Bug corregido: al «Impresión de prueba» por Bluetooth salía «Need android.permission.BLUETOOTH_SCAN … cancelDiscovery» (Android 12+). Se envuelve `cancelDiscovery()` en try/catch (no se necesita; solo se usan impresoras vinculadas). Requiere **regenerar la APK** (código nativo).
+
 ## Dominio (estado)
 - Dominio `atlanthes.cl` comprado en **NIC Chile** (no está en Cloudflare). Para usar `app.atlanthes.cl` hay dos caminos: (A) cambiar los servidores de nombres (NS) de NIC Chile a los de Cloudflare (agregar el sitio atlanthes.cl en Cloudflare, plan gratis) y luego Worker → Settings → Domains & Routes → Add → Custom domain; (B) dejar DNS en NIC y crear un CNAME `app` hacia el workers.dev (menos fiable con Workers). Se recomienda A.
 - Variable de build opcional `VITE_SITE_URL` (Cloudflare → Worker → Settings → Variables and Secrets / Build) para la imagen OG; por defecto `https://app.atlanthes.cl`. No hace falta tocarla si se usa ese dominio.

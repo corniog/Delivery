@@ -157,7 +157,8 @@ public class EscPosPlugin extends Plugin {
         BluetoothAdapter ad = bm == null ? null : bm.getAdapter();
         if (ad == null || !ad.isEnabled()) throw new Exception("El Bluetooth está apagado");
         BluetoothDevice dev = ad.getRemoteDevice(mac);
-        ad.cancelDiscovery();
+        // Cancelar la búsqueda exige el permiso BLUETOOTH_SCAN en Android 12+; no lo necesitamos (solo usamos impresoras ya vinculadas)
+        try { ad.cancelDiscovery(); } catch (SecurityException ignorar) { }
         BluetoothSocket s = null;
         try {
             s = dev.createRfcommSocketToServiceRecord(SPP);
