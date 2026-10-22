@@ -211,7 +211,7 @@ function Matrix({ matriz, setMatriz, disabled }) {
         <thead><tr><th>Módulo</th>{ACTS.map((a) => <th key={a}>{a}</th>)}</tr></thead>
         <tbody>{matriz.map((r) => (
           <tr key={r.Modulo}><td><b>{(MODS.find((m) => m[0] === r.Modulo) || [])[1] || r.Modulo}</b></td>
-            {ACTS.map((a) => <td key={a}><input type="checkbox" disabled={disabled} checked={!!r[a]} onChange={() => toggle(r.Modulo, a)} aria-label={r.Modulo + ' ' + a} style={{ width: 20, height: 20, accentColor: 'var(--accent)' }} /></td>)}</tr>))}</tbody>
+            {ACTS.map((a) => <td key={a} data-label={a}><input type="checkbox" disabled={disabled} checked={!!r[a]} onChange={() => toggle(r.Modulo, a)} aria-label={r.Modulo + ' ' + a} style={{ width: 20, height: 20, accentColor: 'var(--accent)' }} /></td>)}</tr>))}</tbody>
       </table>
     </div>
   );

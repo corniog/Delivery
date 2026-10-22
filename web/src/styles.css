@@ -86,6 +86,10 @@ table.t{width:100%;border-collapse:collapse}
   .t tr{display:block;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;padding:6px 4px;background:var(--card)}
   .t td{display:flex;justify-content:space-between;gap:12px;border:0;padding:5px 10px}
   .t td::before{content:attr(data-label);color:var(--muted);font-size:.8rem}
+  .matrix td{align-items:center;text-align:left;font-size:.95rem}
+  .matrix td::before{color:var(--ink);font-size:.95rem;font-weight:600}
+  .matrix td:first-child{font-size:1.05rem;border-bottom:1px solid var(--line);margin-bottom:4px;padding-bottom:8px}
+  .matrix td:first-child::before{display:none}
   .t td.actions{justify-content:flex-end}
   .t td.actions::before{display:none}
   .t tfoot tr{background:none;border:0}
