@@ -70,6 +70,8 @@ export class Ticket {
     if (corte) this.raw(GS, 0x56, 66, 0);
     return this;
   }
+  // Abre la caja de dinero conectada (RJ-11) a la impresora: pulso ESC p. pin 0 = el normal; pin 1 = algunas cajas
+  caja(pin = 0) { return this.raw(ESC, 0x70, Number(pin) === 1 ? 1 : 0, 60, 120); }
   bytes() { return Uint8Array.from(this.b); }
 }
 
@@ -82,6 +84,19 @@ const colsDe = (pr) => Number(pr.cols) || COLUMNAS[pr.papel] || 42;
 const nuevo = (pr) => new Ticket({ cols: colsDe(pr), tildes: pr.tildes !== false });
 const cierre = (t, pr) => t.fin({ corte: !!pr.corte, avance: pr.avance === undefined || pr.avance === '' ? undefined : Number(pr.avance) });
 
+// Dirección a mostrar: la de entrega del delivery si existe; si no, la del cliente
+export const direccionCliente = ({ cliente, servicio }) => String((servicio && servicio.Direccion_Entrega) || (cliente && cliente.Direccion) || '').trim();
+
+// ¿Esta impresora debe abrir la caja con esta venta? Solo cuando el pago está confirmado.
+export function debeAbrirCaja(venta, pr, pagado) {
+  if (!pr || !pr.caja || !pagado) return false;
+  if (pr.cajaSoloEfectivo) return ['Efectivo', 'Mixto'].includes(venta.Metodo_Pago);
+  return true;
+}
+
+// Solo abrir la caja (botón de prueba)
+export function abrirCaja(pr) { return nuevo(pr).caja(pr.pinCaja).bytes(); }
+
 // ctx: { config, brand, money(n), fecha(s) }
 export function comprobante(data, ctx, pr) {
   const { venta, detalle, documento, cliente } = data;
@@ -89,6 +104,7 @@ export function comprobante(data, ctx, pr) {
   const t = nuevo(pr);
   const tipo = (documento && documento.Tipo) || venta.Tipo_Documento || 'Ticket';
   const pendiente = !documento || venta.Estado_Pago !== 'Pagado';
+  if (debeAbrirCaja(venta, pr, !pendiente)) t.caja(pr.pinCaja);   // la caja abre apenas se confirma el cobro
   const nombre = brand.NOMBRE_NEGOCIO || '';
   t.p(nombre, { a: 'c', b: true, w: nombre.length * 2 <= t.cols ? 2 : 1, h: 2 });
   if (config.DOCUMENTO_NEGOCIO) t.p(config.DOCUMENTO_NEGOCIO, { a: 'c' });
@@ -97,7 +113,13 @@ export function comprobante(data, ctx, pr) {
   if (pendiente) t.p('PEDIDO - PAGO ' + String(venta.Estado_Pago || 'Pendiente').toUpperCase(), { a: 'c', b: true });
   else t.p(tipo.toUpperCase() + ' N° ' + documento.Folio, { b: true });
   t.lr('Venta', venta.ID_Venta).lr('Fecha', fecha(venta.Fecha_Hora));
-  if (cliente) { t.lr('Cliente', cliente.Nombre); if (cliente.Documento) t.lr('Doc.', cliente.Documento); }
+  if (cliente) {
+    t.lr('Cliente', cliente.Nombre);
+    if (cliente.Documento) t.lr('Doc.', cliente.Documento);
+    const dir = direccionCliente(data);
+    if (dir) t.p('Direccion: ' + dir);
+    if (cliente.Telefono) t.lr('Telefono', String(cliente.Telefono));
+  }
   t.hr();
   for (const d of detalle) {
     t.p(d.Nombre_Producto);

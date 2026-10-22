@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../auth.jsx';
 import { Modal, useToast } from '../ui.jsx';
 import { getImpresoras, setImpresoras, hayDirecta, esNativa, listar, enviar, PLANTILLAS, TIPOS } from '../impresoras.js';
-import { prueba } from '../escpos.js';
+import { prueba, abrirCaja } from '../escpos.js';
 
 const vacia = () => ({ id: 'P' + Date.now().toString(36), nombre: '', tipo: 'usb', direccion: '', etiqueta: '', roles: ['comprobante'], activa: true, ...PLANTILLAS.usb });
 
@@ -35,6 +35,10 @@ export default function Impresoras() {
     setBusy(true);
     try { await enviar(p, prueba(p, p.nombre)); toast('Prueba enviada a ' + (p.nombre || 'la impresora')); } catch (e) { toast(e.message, true); } finally { setBusy(false); }
   };
+  const probarCaja = async (p) => {
+    setBusy(true);
+    try { await enviar(p, abrirCaja(p)); toast('Orden de abrir la caja enviada'); } catch (e) { toast(e.message, true); } finally { setBusy(false); }
+  };
   const ok = () => {
     if (!f.nombre.trim()) return toast('Ponle un nombre a la impresora', true);
     if (!f.direccion.trim()) return toast(f.tipo === 'red' ? 'Escribe la dirección IP de la impresora' : 'Elige el dispositivo de la lista', true);
@@ -52,7 +56,7 @@ export default function Impresoras() {
         <div key={p.id} className="row" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
           <div className="grow">
             <b>{p.nombre}</b> <span className="muted small">· {TIPOS[p.tipo]} · {p.papel} mm{p.corte ? ' · con corte' : ''}</span>
-            <div className="small muted">{p.etiqueta || p.direccion} — {(p.roles || []).map((r) => (r === 'comanda' ? 'Comandas' : 'Comprobantes')).join(' y ')}</div>
+            <div className="small muted">{p.etiqueta || p.direccion} — {(p.roles || []).map((r) => (r === 'comanda' ? 'Comandas' : 'Comprobantes')).join(' y ')}{p.caja ? ' · con caja' : ''}</div>
           </div>
           <button className="btn sm" disabled={busy} onClick={() => probar(p)}>Probar</button>
           <button className="btn sm" onClick={() => { setDisp(null); setF({ ...p }); }}>Editar</button>
@@ -89,9 +93,17 @@ export default function Impresoras() {
               <b className="small">¿Qué imprime?</b>
               <label className="chk"><input type="checkbox" checked={f.roles.includes('comprobante')} onChange={(e) => rol('comprobante', e.target.checked)} />Comprobantes (boleta, factura, ticket)</label>
               {cocina && <label className="chk"><input type="checkbox" checked={f.roles.includes('comanda')} onChange={(e) => rol('comanda', e.target.checked)} />Comandas de cocina</label>}
+              {f.roles.includes('comprobante') && <label className="chk"><input type="checkbox" checked={!!f.caja} onChange={(e) => set('caja', e.target.checked)} />Tiene caja de dinero conectada (se abre al confirmar la venta)</label>}
               <label className="chk"><input type="checkbox" checked={!!f.corte} onChange={(e) => set('corte', e.target.checked)} />Tiene cortador automático</label>
               <label className="chk"><input type="checkbox" checked={!!f.tildes} onChange={(e) => set('tildes', e.target.checked)} />Imprimir tildes y ñ (si salen símbolos raros, desmárcalo)</label>
             </div>
+            {f.caja && f.roles.includes('comprobante') && (
+              <div className="stack">
+                <label className="chk"><input type="checkbox" checked={!!f.cajaSoloEfectivo} onChange={(e) => set('cajaSoloEfectivo', e.target.checked)} />Abrir solo en pagos en efectivo (o mixto)</label>
+                <label className="f">Salida de la caja
+                  <select className="input" value={f.pinCaja || 0} onChange={(e) => set('pinCaja', Number(e.target.value))}><option value={0}>Normal (la mayoría)</option><option value={1}>Alternativa (si la normal no abre)</option></select></label>
+                <div><button className="btn sm" disabled={busy || !f.direccion} onClick={() => probarCaja(f)}>Probar abrir caja</button></div>
+              </div>)}
             {!f.corte && <p className="muted small" style={{ margin: 0 }}>Sin cortador: el papel avanza {f.avance || 0} mm al final para que el ticket salga completo y puedas rasgarlo. Súbelo si queda pegado.</p>}
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" disabled={busy || !f.direccion} onClick={() => probar(f)}>Impresión de prueba</button>

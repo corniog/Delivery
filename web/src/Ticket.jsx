@@ -1,5 +1,6 @@
 import { useAuth } from './auth.jsx';
 import { useFmt, fdt } from './ui.jsx';
+import { direccionCliente } from './escpos.js';
 
 // Datos de impresión del formato: la hoja se arma al imprimir (ver imprimir() en ui.jsx) con el ancho real del papel
 // y la altura exacta del ticket, para que salga UNA sola hoja. MARGEN_INFERIOR_MM = espacio al final para que el papel avance hasta la cuchilla.
@@ -36,6 +37,8 @@ export default function Ticket({ data, formato }) {
           <div className="l"><span>Fecha</span><span>{fdt(venta.Fecha_Hora)}</span></div>
           {cliente && <div className="l"><span>Cliente</span><span>{cliente.Nombre}</span></div>}
           {cliente && cliente.Documento && <div className="l"><span>Doc.</span><span>{cliente.Documento}</span></div>}
+          {cliente && direccionCliente(data) && <div className="l"><span>Dirección</span><span style={{ textAlign: 'right', marginLeft: 8 }}>{direccionCliente(data)}</span></div>}
+          {cliente && cliente.Telefono && <div className="l"><span>Teléfono</span><span>{cliente.Telefono}</span></div>}
           <hr />
           {detalle.map((d) => (
             <div key={d.ID_Detalle} style={{ marginBottom: 3 }}>
