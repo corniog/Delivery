@@ -64,6 +64,7 @@ function Servicios() {
               {s.Estado === 'Asignado' && <><button className="btn ok" onClick={() => set(s, 'Aceptado')}>Aceptar</button><button className="btn danger" onClick={() => set(s, 'Rechazado')}>Rechazar</button></>}
               {s.Estado === 'Aceptado' && <button className="btn primary" onClick={() => set(s, 'En camino')}>Salí a entregar</button>}
               {(s.Estado === 'Aceptado' || s.Estado === 'En camino') && <button className="btn ok" onClick={() => setFin(s)}>Finalizar</button>}
+              {(s.Estado === 'Aceptado' || s.Estado === 'En camino') && <button className="btn danger" onClick={() => { if (window.confirm('¿Cancelar esta entrega? Se avisará a la administración.')) set(s, 'Cancelado'); }}>Cancelar</button>}
             </div>)}
         </div>))}
       {fin && <FinModal s={fin} onClose={() => setFin(null)} onSave={(x) => { set(fin, 'Finalizado', x); setFin(null); }} />}

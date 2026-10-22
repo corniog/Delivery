@@ -1336,7 +1336,7 @@ begin
   if not (estado = any(array['Aceptado', 'En camino', 'Finalizado', 'Rechazado', 'Cancelado', 'Asignado'])) then perform fail_('Estado inválido'); end if;
   if is_deliv(c) then
     if s ->> 'ID_Delivery' <> c.deliv then perform fail_('Este servicio no es tuyo', 'PERM'); end if;
-    if not (estado = any(array['Aceptado', 'En camino', 'Finalizado', 'Rechazado'])) then perform fail_('Acción no permitida', 'PERM'); end if;
+    if not (estado = any(array['Aceptado', 'En camino', 'Finalizado', 'Rechazado', 'Cancelado'])) then perform fail_('Acción no permitida', 'PERM'); end if;
   else
     perform need_(c, 'Delivery', 'Editar');
   end if;
@@ -1349,10 +1349,10 @@ begin
     if coalesce(d ->> 'Tiempo_Min', '') <> '' then patch := patch || jsonb_build_object('Tiempo_Min', nj(d, 'Tiempo_Min')); end if;
   end if;
   perform upd_row(c.tid, 'Servicios_Delivery', 'ID_Servicio', s ->> 'ID_Servicio', patch);
-  if estado in ('Finalizado', 'Rechazado') then
+  if estado in ('Finalizado', 'Rechazado') or (estado = 'Cancelado' and is_deliv(c)) then
     insert into "Alertas" (tenant_id, "ID_Alerta", "Fecha", "Tipo", "Referencia", "Mensaje", "Para_Rol", "Leida")
-    values (c.tid, nuevo_id('A'), fh, case when estado = 'Finalizado' then 'Delivery finalizado' else 'Delivery rechazado' end, s ->> 'ID_Servicio',
-      (s ->> 'Nombre_Delivery') || case when estado = 'Finalizado' then ' finalizó' else ' rechazó' end || ' el pedido ' || (s ->> 'ID_Venta') || ' (' || (s ->> 'Direccion_Entrega') || ')', 'R01,R02', false);
+    values (c.tid, nuevo_id('A'), fh, case estado when 'Finalizado' then 'Delivery finalizado' when 'Rechazado' then 'Delivery rechazado' else 'Delivery cancelado' end, s ->> 'ID_Servicio',
+      (s ->> 'Nombre_Delivery') || case estado when 'Finalizado' then ' finalizó' when 'Rechazado' then ' rechazó' else ' canceló' end || ' el pedido ' || (s ->> 'ID_Venta') || ' (' || (s ->> 'Direccion_Entrega') || ')', 'R01,R02', false);
   end if;
   if estado = 'Finalizado' then
     v := get_row(c.tid, 'Ventas', 'ID_Venta', s ->> 'ID_Venta');
@@ -1632,6 +1632,10 @@ begin
   end if;
   if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','crearVenta','anularVenta','pagarVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
     perform fail_('Acción desconocida: ' || accion);
+  end if;
+  -- Un repartidor SOLO puede operar sus propios pedidos: nada de crear/editar/borrar otras cosas, aunque tenga permisos marcados
+  if is_deliv(c) and not (accion = any(array['me','cambiarPassword','misServicios','servicioEstado','historialDelivery','marcarAlertas','ubicacion'])) then
+    perform fail_('No tienes permiso: un repartidor solo gestiona sus propios pedidos', 'PERM');
   end if;
   l := lic_(c.tid);
   if (l ->> 'bloqueada')::boolean then perform fail_(l ->> 'mensaje', 'LICENSE', lic_publica(l)::text); end if;

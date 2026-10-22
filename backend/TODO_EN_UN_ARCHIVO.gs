@@ -808,9 +808,14 @@ function route_(req) {
   const ctx = authenticate_(req.token);
   const fn = ACTIONS[a];
   if (!fn) fail_('Acción desconocida: ' + a);
+  // Un repartidor SOLO puede operar sus propios pedidos: nada de crear/editar/borrar otras cosas, aunque tenga permisos marcados
+  if (isDelivery_(ctx) && DELIVERY_ACCIONES.indexOf(a) < 0) fail_('No tienes permiso: un repartidor solo gestiona sus propios pedidos', 'PERM');
   checkFunciones_(a, d);
   return fn(ctx, d);
 }
+
+// Acciones permitidas a un usuario repartidor (ID_Delivery): ver/aceptar/rechazar/cancelar/finalizar SUS pedidos, su historial y compartir su ubicación
+const DELIVERY_ACCIONES = ['me', 'logout', 'cambiarPassword', 'misServicios', 'servicioEstado', 'historialDelivery', 'marcarAlertas', 'ubicacion'];
 
 const ACTIONS = {
   me: me_,
@@ -1711,7 +1716,7 @@ function servicioEstado_(ctx, d) {
   if (validos.indexOf(estado) < 0) fail_('Estado inválido');
   if (isDelivery_(ctx)) {
     if (s.ID_Delivery !== ctx.user.ID_Delivery) fail_('Este servicio no es tuyo', 'PERM');
-    if (['Aceptado', 'En camino', 'Finalizado', 'Rechazado'].indexOf(estado) < 0) fail_('Acción no permitida', 'PERM');
+    if (['Aceptado', 'En camino', 'Finalizado', 'Rechazado', 'Cancelado'].indexOf(estado) < 0) fail_('Acción no permitida', 'PERM');
   } else {
     need_(ctx, 'Delivery', 'Editar');
   }
@@ -1725,11 +1730,11 @@ function servicioEstado_(ctx, d) {
     if (d.Tiempo_Min !== undefined && d.Tiempo_Min !== '') patch.Tiempo_Min = num_(d.Tiempo_Min);
   }
   update_('Servicios_Delivery', s._row, patch);
-  if (estado === 'Finalizado' || estado === 'Rechazado') {
+  if (estado === 'Finalizado' || estado === 'Rechazado' || (estado === 'Cancelado' && isDelivery_(ctx))) {
     insert_('Alertas', {
-      ID_Alerta: newId_('A'), Fecha: fh, Tipo: estado === 'Finalizado' ? 'Delivery finalizado' : 'Delivery rechazado',
+      ID_Alerta: newId_('A'), Fecha: fh, Tipo: estado === 'Finalizado' ? 'Delivery finalizado' : estado === 'Rechazado' ? 'Delivery rechazado' : 'Delivery cancelado',
       Referencia: s.ID_Servicio,
-      Mensaje: s.Nombre_Delivery + (estado === 'Finalizado' ? ' finalizó' : ' rechazó') + ' el pedido ' + s.ID_Venta + ' (' + s.Direccion_Entrega + ')',
+      Mensaje: s.Nombre_Delivery + (estado === 'Finalizado' ? ' finalizó' : estado === 'Rechazado' ? ' rechazó' : ' canceló') + ' el pedido ' + s.ID_Venta + ' (' + s.Direccion_Entrega + ')',
       Para_Rol: 'R01,R02', Leida: false
     });
   }

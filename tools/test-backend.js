@@ -66,6 +66,11 @@ const ms = ok(rt.call('misServicios', {}, J));
 assert.strictEqual(ms.length, 1); assert.strictEqual(ms[0].items.length, 2); assert.strictEqual(ms[0].Cliente, 'María');
 bad(rt.call('listar', { tabla: 'Clientes' }, J), 'permiso');
 bad(rt.call('listarVentas', {}, J), 'permiso');
+// el repartidor NUNCA crea/edita/borra, ni siquiera con permisos marcados: solo gestiona sus pedidos
+bad(rt.call('crear', { tabla: 'Deliverys', datos: { Nombre: 'Falso' } }, J), 'permiso');
+bad(rt.call('actualizar', { tabla: 'Deliverys', id: del.ID_Delivery, datos: { Nombre: 'Cambiado' } }, J), 'permiso');
+bad(rt.call('crearVenta', { tipoEntrega: 'Retiro en local', items: [] }, J), 'permiso');
+bad(rt.call('mapaVivo', {}, J), 'permiso');
 ok(rt.call('servicioEstado', { ID_Servicio: ms[0].ID_Servicio, estado: 'Aceptado' }, J));
 ok(rt.call('servicioEstado', { ID_Servicio: ms[0].ID_Servicio, estado: 'Finalizado', Distancia_Km: 5, Tiempo_Min: 20 }, J));
 assert(ok(rt.call('listar', { tabla: 'Alertas' }, V)).some(a => a.Tipo === 'Delivery finalizado'));
@@ -181,7 +186,7 @@ ok(rt.call('login', { email: 'ventas@test.com', password: 'NuevaClave99' }));
   const Jt = ok(rt.call('login', { email: 'juan@test.com', password: 'Juan123456' })).token;
   bad(rt.call('ubicacion', { lat: -33.4, lng: -70.6 }, M), 'repartidores');
   bad(rt.call('ubicacion', { lat: 999, lng: 1 }, Jt), 'inválida');
-  bad(rt.call('mapaVivo', {}, Jt), 'administración');
+  bad(rt.call('mapaVivo', {}, Jt), 'permiso');
   const v = ok(rt.call('crearVenta', { tipoEntrega: 'Delivery', direccion: 'Calle 1', items: [{ ID_Producto: p1.ID_Producto, Cantidad: 1 }],
     delivery: { ID_Delivery: del.ID_Delivery, Monto_Delivery: 1000, Destino_LatLong: '-33.4500,-70.6600' } }, M));
   const sv = ok(rt.call('misServicios', { estados: ['Asignado'] }, Jt));
