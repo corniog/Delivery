@@ -51,6 +51,11 @@
 1. Pantalla de Inicio: las tarjetas Vender / Inventario / Delivery / Historial se veían en negro y subrayadas sobre fondo azul oscuro (eran enlaces con color de acento). Arreglado en `web/src/styles.css` con la regla `a.card.stat` (usa `var(--ink)` y sin subrayado). Es solo web: NO hace falta regenerar la APK (la app en vivo lo toma al desplegar Cloudflare).
 2. Color de Configuración (COLOR_PRIMARIO): ahora es el **FONDO** de la app. `web/src/tema.js` (`aplicarTema`, llamado desde `auth.jsx`) calcula el resto a partir de ese fondo: letras (claras u oscuras según contraste), tarjetas, bordes, botones/acentos y colores de estado (verde/ámbar/rojo) con contraste mínimo ~4.5. Variables nuevas `--ok-ink`, `--bad-ink` usadas en `.btn.ok` y `.toast.err`. Sin color guardado se usa el tema por defecto según el celular. Antes solo cambiaba `--accent` y dejaba letras/botones ilegibles. Solo web: no requiere regenerar APK. Si no se ve el cambio: cerrar y abrir la app dos veces (la PWA actualiza en segundo plano).
 
+## Regla: todo cambio debe verse en los 3 lados
+- Cloudflare (web), Supabase y Apps Script usan la MISMA web (`web/`). Cambios de pantalla/colores/textos → solo `web/` + push a main (Cloudflare despliega; la APK en vivo lo toma sola). Los dos motores guardan la configuración igual (ej. COLOR_PRIMARIO es solo un dato; no hay código del color en `backend/` ni `supabase/`).
+- Si un cambio toca datos o acciones del servidor, hacerlo en LOS DOS: `backend/Code.gs` (regenerar `TODO_EN_UN_ARCHIVO.gs` con `python3 tools/generar_esquema.py`) y `supabase/` (`python3 tools/generar_supabase.py`), y avisar al usuario qué debe volver a pegar/ejecutar en cada uno.
+- Solo hay que regenerar la APK si cambia código nativo, la URL, o si se usa el modo «empaquetada».
+
 ## Pruebas / herramientas
 - `tools/test-backend.js`, `test-supabase.js` (PGlite), `test-licencia.js`, `test-escpos.mjs`; dev servers `tools/dev-server.js` (:8787, `DEV_LICENCIA=0`), `vite preview` (:4173). Para parar: `fuser -k 8787/tcp` (no usar pkill: mata la shell).
 - Playwright E2E en /tmp (no persiste).
