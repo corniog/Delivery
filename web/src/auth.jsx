@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { aplicarTema } from './tema.js';
 import { call, getToken, setToken, setNegocio } from './api.js';
 
 const Ctx = createContext(null);
@@ -39,7 +40,7 @@ export function AuthProvider({ children }) {
     const link = document.querySelector('link[rel="icon"]');
     if (link && state.brand.LOGO) link.href = state.brand.LOGO;
     const col = state.config.COLOR_PRIMARIO;
-    if (col && /^#[0-9a-f]{6}$/i.test(col)) document.documentElement.style.setProperty('--accent', col);
+    aplicarTema(col);
   }, [state.brand, state.config.COLOR_PRIMARIO]);
 
   const login = async (email, password) => {

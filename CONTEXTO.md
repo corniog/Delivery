@@ -49,6 +49,7 @@
 
 ## Historial de cambios recientes (22-oct-2026)
 1. Pantalla de Inicio: las tarjetas Vender / Inventario / Delivery / Historial se veían en negro y subrayadas sobre fondo azul oscuro (eran enlaces con color de acento). Arreglado en `web/src/styles.css` con la regla `a.card.stat` (usa `var(--ink)` y sin subrayado). Es solo web: NO hace falta regenerar la APK (la app en vivo lo toma al desplegar Cloudflare).
+2. Color de Configuración (COLOR_PRIMARIO): antes solo cambiaba `--accent` y dejaba letras/botones ilegibles (negro sobre oscuro). Ahora `web/src/tema.js` (`aplicarTema`, llamado desde `auth.jsx`) calcula fondo, tarjetas, letras, bordes y botones a partir del color elegido con contraste mínimo 4.5 (color muy oscuro → app oscura; claro/medio → app clara con fondo teñido). Sin color guardado se usa el tema por defecto según el celular. Solo web: no requiere regenerar APK.
 
 ## Pruebas / herramientas
 - `tools/test-backend.js`, `test-supabase.js` (PGlite), `test-licencia.js`, `test-escpos.mjs`; dev servers `tools/dev-server.js` (:8787, `DEV_LICENCIA=0`), `vite preview` (:4173). Para parar: `fuser -k 8787/tcp` (no usar pkill: mata la shell).
