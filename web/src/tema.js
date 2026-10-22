@@ -1,5 +1,6 @@
-// Tema automático: a partir del color elegido en Configuración se calculan
-// fondo, tarjetas, letras, bordes y botones, siempre con buen contraste.
+// Tema automático: el color elegido en Configuración es el FONDO de la app.
+// Letras, tarjetas, bordes, botones y colores de estado se calculan solos
+// para que siempre se lean bien (claro sobre fondo oscuro, oscuro sobre claro).
 const h2r = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const r2h = (r) => '#' + r.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
 const mix = (a, b, t) => { const A = h2r(a), B = h2r(b); return r2h(A.map((v, i) => v + (B[i] - v) * t)); };
@@ -9,14 +10,14 @@ const lum = (h) => {
 };
 const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
-// Ajusta el color de acento hasta que se lea bien sobre el fondo dado
-function acentoLegible(col, bg, toward, min) {
+// Acerca un color hacia "toward" hasta que tenga contraste suficiente con "bg"
+function legible(col, bg, toward, min = 4.5) {
   let c = col;
   for (let i = 1; i <= 20 && contrast(c, bg) < min; i++) c = mix(col, toward, i * 0.05);
   return c;
 }
 
-const VARS = ['--accent', '--accent-soft', '--accent-ink', '--bg', '--card', '--ink', '--muted', '--line', '--shadow'];
+const VARS = ['--accent', '--accent-soft', '--accent-ink', '--bg', '--card', '--ink', '--muted', '--line', '--shadow', '--ok', '--warn', '--bad', '--ok-ink', '--bad-ink'];
 
 export function aplicarTema(col) {
   const root = document.documentElement;
@@ -26,31 +27,29 @@ export function aplicarTema(col) {
     root.style.removeProperty('color-scheme');
     return;
   }
-  const oscuro = lum(col) < 0.08; // color muy oscuro -> app oscura; color claro/medio -> app clara
-  let bg, card, line, ink, muted, accent, shadow;
-  if (oscuro) {
-    bg = mix(col, '#000000', 0.6);
-    card = mix(bg, '#ffffff', 0.07);
-    line = mix(bg, '#ffffff', 0.17);
-    ink = '#f1f3fa';
-    muted = mix(ink, bg, 0.38);
-    accent = acentoLegible(col, bg, '#ffffff', 4.5);
-    shadow = '0 1px 2px rgba(0,0,0,.4)';
-  } else {
-    bg = mix(col, '#ffffff', 0.93);
-    card = '#ffffff';
-    line = mix(col, '#ffffff', 0.82);
-    ink = '#151826';
-    muted = '#6b7285';
-    accent = acentoLegible(col, card, '#000000', 4.5);
-    shadow = '0 1px 2px rgba(16,24,40,.06),0 4px 16px rgba(16,24,40,.05)';
-  }
+  const bg = col;
+  const ink = contrast('#ffffff', bg) >= contrast('#10131f', bg) ? '#f4f6fc' : '#10131f';
+  const oscuro = ink === '#f4f6fc';
+  const card = oscuro ? mix(bg, '#ffffff', 0.08) : mix(bg, '#ffffff', 0.55);
+  const line = mix(bg, ink, 0.2);
+  const muted = legible(mix(ink, bg, 0.4), card, ink, 4.5);
+  // Botones/acentos: mismo tono que el fondo pero claro (si fondo oscuro) u oscuro (si fondo claro)
+  const base = oscuro ? mix(bg, '#ffffff', 0.7) : mix(bg, '#000000', 0.6);
+  const accent = legible(base, card, oscuro ? '#ffffff' : '#000000', 4.5);
   const accentInk = contrast(accent, '#ffffff') >= contrast(accent, '#0b0f1a') ? '#ffffff' : '#0b0f1a';
+  // Colores de estado (verde / ámbar / rojo) legibles sobre la tarjeta
+  const ok = legible(oscuro ? '#4ade80' : '#15803d', card, oscuro ? '#ffffff' : '#000000', 4.5);
+  const warn = legible(oscuro ? '#fbbf24' : '#b45309', card, oscuro ? '#ffffff' : '#000000', 4.5);
+  const bad = legible(oscuro ? '#f87171' : '#b91c1c', card, oscuro ? '#ffffff' : '#000000', 4.5);
+  const inkOn = (c) => (contrast(c, '#ffffff') >= contrast(c, '#0b0f1a') ? '#ffffff' : '#0b0f1a');
+
   const set = (k, v) => root.style.setProperty(k, v);
-  set('--accent', accent);
-  set('--accent-soft', `color-mix(in srgb, ${accent} 16%, transparent)`);
-  set('--accent-ink', accentInk);
-  set('--bg', bg); set('--card', card); set('--ink', ink); set('--muted', muted); set('--line', line); set('--shadow', shadow);
+  set('--bg', bg); set('--card', card); set('--ink', ink); set('--muted', muted); set('--line', line);
+  set('--accent', accent); set('--accent-ink', accentInk);
+  set('--accent-soft', `color-mix(in srgb, ${accent} 18%, transparent)`);
+  set('--ok', ok); set('--warn', warn); set('--bad', bad);
+  set('--ok-ink', inkOn(ok)); set('--bad-ink', inkOn(bad));
+  set('--shadow', oscuro ? '0 1px 2px rgba(0,0,0,.4)' : '0 1px 2px rgba(16,24,40,.08),0 4px 16px rgba(16,24,40,.06)');
   set('color-scheme', oscuro ? 'dark' : 'light');
   if (meta) meta.setAttribute('content', bg);
 }

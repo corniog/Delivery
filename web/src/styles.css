@@ -55,7 +55,7 @@ a{color:var(--accent)}
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
-.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:var(--ok-ink,#fff)}
 .btn.sm{padding:5px 10px;min-height:32px;font-size:.85rem}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn svg{width:18px;height:18px}
@@ -102,7 +102,7 @@ table.t{width:100%;border-collapse:collapse}
 /* Toast */
 .toasts{position:fixed;top:14px;right:14px;z-index:100;display:flex;flex-direction:column;gap:8px;max-width:90vw}
 .toast{background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:12px;box-shadow:var(--shadow);animation:in .2s}
-.toast.err{background:var(--bad);color:#fff}
+.toast.err{background:var(--bad);color:var(--bad-ink,#fff)}
 @keyframes in{from{transform:translateY(-8px);opacity:0}}
 
 /* Login */
