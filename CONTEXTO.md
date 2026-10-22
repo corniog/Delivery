@@ -47,6 +47,9 @@
 ## Historial de cambios recientes (20-oct-2026)
 1. Salir completamente (login + menú). 2. Imagen OG (`web/public/og.png`, metas en `web/index.html`, `vite.config.js` plugin og-site). 3. Guía de dominio con NIC Chile. 4. CONTEXTO.md en repo y en el Proyecto (leerlo al iniciar chat nuevo; actualizarlo cuando el usuario diga «actualiza el CONTEXTO»). 5. APK workflow con `url_web`.
 
+## Historial de cambios recientes (22-oct-2026)
+1. Pantalla de Inicio: las tarjetas Vender / Inventario / Delivery / Historial se veían en negro y subrayadas sobre fondo azul oscuro (eran enlaces con color de acento). Arreglado en `web/src/styles.css` con la regla `a.card.stat` (usa `var(--ink)` y sin subrayado). Es solo web: NO hace falta regenerar la APK (la app en vivo lo toma al desplegar Cloudflare).
+
 ## Pruebas / herramientas
 - `tools/test-backend.js`, `test-supabase.js` (PGlite), `test-licencia.js`, `test-escpos.mjs`; dev servers `tools/dev-server.js` (:8787, `DEV_LICENCIA=0`), `vite preview` (:4173). Para parar: `fuser -k 8787/tcp` (no usar pkill: mata la shell).
 - Playwright E2E en /tmp (no persiste).
