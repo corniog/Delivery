@@ -318,7 +318,12 @@ begin
     return jsonb_build_object('ok', false, 'error', 'Demasiados intentos. Espera 10 minutos e inténtalo de nuevo.', 'code', '');
   end if;
   select * into ui from "Usuarios" where lower("Email") = em limit 1;
-  if not found or not ui."Activo" or ui."Password_Hash" = '' or crypt(pw, ui."Password_Hash") <> ui."Password_Hash" then
+  -- Usuarios migrados desde Apps Script: su contraseña antigua (SHA-256 x200 con sal) sigue valiendo y se convierte a la nueva al entrar
+  if found and ui."Activo" and ui."Salt" <> '' and ui."Password_Hash" ~ '^[0-9a-f]{64}$' and hash_legacy(pw, ui."Salt") = ui."Password_Hash" then
+    update "Usuarios" set "Password_Hash" = crypt(pw, gen_salt('bf', 10)), "Salt" = '' where tenant_id = ui.tenant_id and "ID_Usuario" = ui."ID_Usuario";
+    select * into ui from "Usuarios" where tenant_id = ui.tenant_id and "ID_Usuario" = ui."ID_Usuario";
+  end if;
+  if not found or not ui."Activo" or ui."Password_Hash" = '' or ui."Password_Hash" ~ '^[0-9a-f]{64}$' or crypt(pw, ui."Password_Hash") <> ui."Password_Hash" then
     insert into intentos_login (clave, fallos, hasta) values (em, 1, now() + interval '10 minutes')
     on conflict (clave) do update set fallos = case when intentos_login.hasta > now() then intentos_login.fallos + 1 else 1 end, hasta = now() + interval '10 minutes';
     return jsonb_build_object('ok', false, 'error', 'Correo o contraseña incorrectos', 'code', '');
@@ -330,6 +335,14 @@ begin
   end if;
   perform upd_row(ui.tenant_id, 'Usuarios', 'ID_Usuario', ui."ID_Usuario", jsonb_build_object('Ultimo_Login', ahora_txt((select zona_horaria from negocios where id = ui.tenant_id))));
   return jsonb_build_object('ok', true, 'data', sesion_respuesta(ui.tenant_id, get_row(ui.tenant_id, 'Usuarios', 'ID_Usuario', ui."ID_Usuario")));
+end $$;
+
+-- Contraseña antigua de Apps Script: h = sal + clave; 200 veces h = sha256(h + i) en hexadecimal
+create or replace function hash_legacy(p_pw text, p_salt text) returns text language plpgsql immutable as $$
+declare h text := p_salt || p_pw; i integer;
+begin
+  for i in 0..199 loop h := encode(extensions.digest(h || i::text, 'sha256'), 'hex'); end loop;
+  return h;
 end $$;
 
 -- Alta de un negocio nuevo (registro propio): 15 días de prueba con todas las funciones
@@ -1113,7 +1126,11 @@ begin
   ext := case mime when 'image/png' then 'png' when 'image/jpeg' then 'jpg' when 'image/webp' then 'webp' when 'image/gif' then 'gif' when 'application/pdf' then 'pdf' else null end;
   if ext is null then perform fail_('Tipo de archivo no permitido'); end if;
   if tam <= 0 or tam > 6 * 1024 * 1024 then perform fail_('Archivo vacío o demasiado grande (máx. ~6 MB)'); end if;
-  ruta := c.tid::text || '/' || gen_random_uuid()::text || '.' || ext;
+  ruta := (select codigo from negocios where id = c.tid) || '/' ||
+          (case modulo when 'Categorias' then 'categorias' when 'Inventario' then 'productos' when 'Configuracion' then 'logo' when 'Clientes' then 'clientes'
+                       when 'Proveedores' then 'proveedores' when 'Conocimiento' then 'conocimiento' else lower(modulo) end) || '/' ||
+          (case when tj(d, 'ref') ~ '^[A-Za-z0-9_-]{1,40}$' then tj(d, 'ref') || '-' else '' end) ||
+          substr(replace(gen_random_uuid()::text, '-', ''), 1, 10) || '.' || ext;
   insert into subidas (path, tenant_id, mime, expira) values (ruta, c.tid, mime, now() + interval '10 minutes');
   perform audit_(c, modulo, 'Crear', ruta, 'Archivo ' || left(tj(d, 'nombre'), 80));
   return jsonb_build_object('id', ruta, 'path', ruta, 'bucket', 'archivos', 'url', '/storage/v1/object/public/archivos/' || ruta);

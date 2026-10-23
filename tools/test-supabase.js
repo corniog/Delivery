@@ -127,7 +127,18 @@ rt.exec('reset role');
 
 // --- Subida de archivos: solo con un permiso reservado, de un solo uso ---
 const up = ok(rt.call('subirArchivo', { modulo: 'Inventario', nombre: 'foto.png', mime: 'image/png', tamano: 2000 }, A.token));
-assert(up.path.startsWith(rt.sql("select id::text i from negocios where codigo = 'burger818'")[0].i + '/'));
+assert(up.path.startsWith('burger818/productos/'), 'ruta ordenada: negocio/carpeta/archivo: ' + up.path);
+assert(ok(rt.call('subirArchivo', { modulo: 'Categorias', nombre: 'c.png', mime: 'image/png', tamano: 2000, ref: 'C0001' }, A.token)).path.startsWith('burger818/categorias/C0001-'));
+// contraseña antigua de Apps Script (usuario migrado): entra y se convierte a la nueva
+{
+  const h = require('crypto'); let x = 'salMigrada' + 'ClaveAntigua1'; for (let i = 0; i < 200; i++) x = h.createHash('sha256').update(x + i).digest('hex');
+  const tid = rt.sql("select id::text i from negocios where codigo = 'burger818'")[0].i;
+  rt.sql(`insert into "Usuarios" (tenant_id, "ID_Usuario", "Email", "Nombre", "ID_Rol", "Activo", "Password_Hash", "Salt") values ($1::uuid, 'UMIG1', 'migrado@burger.cl', 'Migrado', 'R01', true, $2, 'salMigrada')`, [tid, x]);
+  bad(rt.call('login', { email: 'migrado@burger.cl', password: 'otra-clave-123' }), 'incorrectos');
+  assert.strictEqual(rt.call('login', { email: 'migrado@burger.cl', password: 'ClaveAntigua1' }).ok, true, 'clave antigua válida');
+  assert.strictEqual(rt.sql(`select "Salt" s, left("Password_Hash", 4) h from "Usuarios" where "ID_Usuario" = 'UMIG1'`)[0].s, '', 'sal limpiada');
+  assert.strictEqual(rt.call('login', { email: 'migrado@burger.cl', password: 'ClaveAntigua1' }).ok, true, 'sigue entrando con la clave nueva ya convertida');
+}
 assert.strictEqual(rt.sql('select puede_subir($1) ok', [up.path])[0].ok, true);
 assert.strictEqual(rt.sql('select puede_subir($1) ok', [up.path])[0].ok, false, 'un permiso sirve una sola vez');
 assert.strictEqual(rt.sql("select puede_subir('inventado/x.png') ok")[0].ok, false);
