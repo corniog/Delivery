@@ -202,6 +202,75 @@ ok(rt.call('login', { email: 'ventas@test.com', password: 'NuevaClave99' }));
   assert(mv.origen && mv.origen.length === 2);
 }
 
+// productos preparados (recetas): se descuentan los ingredientes, no el producto
+{
+  const pan = ok(rt.call('crear', { tabla: 'Productos', datos: { Nombre: 'Pan hamburguesa', Precio_Venta: 600, Precio_Compra: 300, Stock_Actual: 10, Stock_Minimo: 2, Unidad_Medida: 'Unidad' } }, T));
+  const carne = ok(rt.call('crear', { tabla: 'Productos', datos: { Nombre: 'Carne molida', Precio_Venta: 9000, Precio_Compra: 6000, Stock_Actual: 2, Stock_Minimo: 0.5, Unidad_Medida: 'Kilogramo' } }, T));
+  const queso = ok(rt.call('crear', { tabla: 'Productos', datos: { Nombre: 'Queso laminado', Precio_Venta: 12000, Precio_Compra: 8000, Stock_Actual: 1, Stock_Minimo: 0.1, Unidad_Medida: 'Kilogramo' } }, T));
+  const stockDe = (id) => Number(ok(rt.call('listar', { tabla: 'Productos' }, T)).find(x => x.ID_Producto === id).Stock_Actual);
+  const movsAntes = rt.readAll('Movimientos_Inventario').length;
+  const burger = ok(rt.call('crear', { tabla: 'Productos', datos: { Nombre: 'Hamburguesa doble', ID_Categoria: cat.ID_Categoria, Precio_Venta: 5000, Es_Preparado: true, Stock_Actual: 99, Stock_Minimo: 5 } }, T));
+  assert.strictEqual(stockDe(burger.ID_Producto), 0, 'El preparado no lleva stock propio');
+  assert.strictEqual(rt.readAll('Movimientos_Inventario').length, movsAntes, 'Sin movimiento de stock inicial para preparados');
+  const ing = (p, cant, cantR, uni) => ({ ID_Ingrediente: p.ID_Producto, Cantidad: cant, Cantidad_Receta: cantR, Unidad_Receta: uni });
+  // validaciones de la receta
+  bad(rt.call('guardarReceta', { ID_Producto: p2.ID_Producto, ingredientes: [ing(pan, 1, 1, 'un')] }, T), 'preparado');
+  bad(rt.call('guardarReceta', { ID_Producto: burger.ID_Producto, ingredientes: [] }, T), 'al menos un ingrediente');
+  bad(rt.call('guardarReceta', { ID_Producto: burger.ID_Producto, ingredientes: [ing(burger, 1, 1, 'un')] }, T), 'sí mismo');
+  bad(rt.call('guardarReceta', { ID_Producto: burger.ID_Producto, ingredientes: [ing(pan, 0, 0, 'un')] }, T), 'Cantidad inválida');
+  bad(rt.call('guardarReceta', { ID_Producto: burger.ID_Producto, ingredientes: [ing(pan, 1, 1, 'un'), ing(pan, 1, 1, 'un')] }, T), 'repetido');
+  bad(rt.call('crearVenta', { items: [{ ID_Producto: burger.ID_Producto, Cantidad: 1 }] }, T), 'no tiene ingredientes');
+  const g = ok(rt.call('guardarReceta', { ID_Producto: burger.ID_Producto, ingredientes: [ing(pan, 1, 1, 'un'), ing(carne, 0.2, 200, 'g'), ing(queso, 0.02, 20, 'g')] }, T));
+  assert.strictEqual(g.Costo, 300 + 1200 + 160);
+  assert.strictEqual(Number(ok(rt.call('listar', { tabla: 'Productos' }, T)).find(x => x.ID_Producto === burger.ID_Producto).Precio_Compra), 1660);
+  assert.strictEqual(ok(rt.call('listar', { tabla: 'Receta_Ingredientes' }, T)).length, 3);
+  // otro preparado no puede usarse como ingrediente
+  const otro = ok(rt.call('crear', { tabla: 'Productos', datos: { Nombre: 'Combo', Precio_Venta: 7000, Es_Preparado: true } }, T));
+  bad(rt.call('guardarReceta', { ID_Producto: otro.ID_Producto, ingredientes: [ing(burger, 1, 1, 'un')] }, T), 'preparado');
+  // guardar de nuevo reemplaza (no duplica)
+  ok(rt.call('guardarReceta', { ID_Producto: burger.ID_Producto, ingredientes: [ing(pan, 1, 1, 'un'), ing(carne, 0.2, 200, 'g'), ing(queso, 0.02, 20, 'g')] }, T));
+  assert.strictEqual(ok(rt.call('listar', { tabla: 'Receta_Ingredientes' }, T)).length, 3);
+  // el vendedor (R02) puede vender preparados pero no ve ni cambia recetas sin permiso de edición de otros
+  // venta de 2 hamburguesas + 1 pan suelto
+  const vr = ok(rt.call('crearVenta', { items: [{ ID_Producto: burger.ID_Producto, Cantidad: 2 }, { ID_Producto: pan.ID_Producto, Cantidad: 1 }] }, V));
+  assert.strictEqual(vr.detalle.find(x => x.ID_Producto === burger.ID_Producto).Costo_Unitario, 1660);
+  assert.strictEqual(vr.venta.Total, 10600);
+  assert.strictEqual(stockDe(pan.ID_Producto), 7);
+  assert.strictEqual(stockDe(carne.ID_Producto), 1.6);
+  assert.strictEqual(stockDe(queso.ID_Producto), 0.96);
+  assert.strictEqual(stockDe(burger.ID_Producto), 0);
+  const movsVenta = rt.readAll('Movimientos_Inventario').filter(x => x.Referencia === vr.venta.ID_Venta && x.Tipo === 'Salida venta');
+  assert.strictEqual(movsVenta.length, 3, 'un movimiento por ingrediente');
+  assert(!movsVenta.some(x => x.ID_Producto === burger.ID_Producto), 'el preparado no tiene movimientos');
+  // stock insuficiente de un ingrediente: no se vende ni se descuenta nada
+  bad(rt.call('crearVenta', { items: [{ ID_Producto: burger.ID_Producto, Cantidad: 9 }] }, T), 'Falta');
+  assert.strictEqual(stockDe(pan.ID_Producto), 7);
+  assert.strictEqual(stockDe(carne.ID_Producto), 1.6);
+  // anular devuelve los ingredientes
+  ok(rt.call('anularVenta', { ID_Venta: vr.venta.ID_Venta }, T));
+  assert.strictEqual(stockDe(pan.ID_Producto), 10);
+  assert.strictEqual(stockDe(carne.ID_Producto), 2);
+  assert.strictEqual(stockDe(queso.ID_Producto), 1);
+  assert.strictEqual(stockDe(burger.ID_Producto), 0);
+  // reglas de integridad
+  bad(rt.call('ajustarStock', { ID_Producto: burger.ID_Producto, tipo: 'Entrada compra', cantidad: 5 }, T), 'preparado');
+  const prov = ok(rt.call('crear', { tabla: 'Proveedores', datos: { Nombre: 'Distribuidora' } }, T));
+  bad(rt.call('crearCompra', { ID_Proveedor: prov.ID_Proveedor, items: [{ ID_Producto: burger.ID_Producto, Cantidad: 1, Costo_Unitario: 100 }] }, T), 'preparado');
+  bad(rt.call('eliminar', { tabla: 'Productos', id: carne.ID_Producto }, T), 'ingrediente de');
+  bad(rt.call('actualizar', { tabla: 'Productos', id: carne.ID_Producto, datos: { Es_Preparado: true } }, T), 'ingrediente de');
+  assert(!ok(rt.call('kpi', {}, T)).bajoStock.some(x => x.nombre === 'Hamburguesa doble'), 'Un preparado no cuenta como stock bajo');
+  // quitar la marca de preparado borra su receta; borrar el preparado también
+  ok(rt.call('actualizar', { tabla: 'Productos', id: burger.ID_Producto, datos: { Es_Preparado: false } }, T));
+  assert.strictEqual(ok(rt.call('listar', { tabla: 'Receta_Ingredientes' }, T)).length, 0);
+  ok(rt.call('actualizar', { tabla: 'Productos', id: burger.ID_Producto, datos: { Es_Preparado: true } }, T));
+  ok(rt.call('guardarReceta', { ID_Producto: burger.ID_Producto, ingredientes: [ing(pan, 1, 1, 'un')] }, T));
+  ok(rt.call('eliminar', { tabla: 'Productos', id: burger.ID_Producto }, T));
+  assert.strictEqual(ok(rt.call('listar', { tabla: 'Receta_Ingredientes' }, T)).length, 0);
+  ok(rt.call('eliminar', { tabla: 'Productos', id: carne.ID_Producto }, T));
+  // el repartidor no puede tocar recetas
+  bad(rt.call('guardarReceta', { ID_Producto: otro.ID_Producto, ingredientes: [] }, J), 'permiso');
+}
+
 // bloqueo por intentos
 for (let i = 0; i < 5; i++) rt.call('login', { email: 'juan@test.com', password: 'x' });
 bad(rt.call('login', { email: 'juan@test.com', password: 'Juan123456' }), 'Demasiados intentos');

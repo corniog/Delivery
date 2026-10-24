@@ -408,7 +408,7 @@ create or replace function cfg_tabla(p_t text) returns jsonb language sql immuta
 
 create or replace function modulo_solo_lectura(p_t text) returns text language sql immutable as $$
   select (jsonb_build_object('Ventas', 'Ventas', 'Detalle_Venta', 'Ventas', 'Documentos', 'Ventas', 'Compras', 'Proveedores',
-    'Detalle_Compra', 'Proveedores', 'Movimientos_Inventario', 'Inventario', 'Servicios_Delivery', 'Delivery',
+    'Detalle_Compra', 'Proveedores', 'Movimientos_Inventario', 'Inventario', 'Receta_Ingredientes', 'Inventario', 'Servicios_Delivery', 'Delivery',
     'Ubicaciones_Delivery', 'Delivery', 'Auditoria', 'Configuracion')) ->> p_t $$;
 
 create or replace function tabla_funcion(p_t text) returns text language sql immutable as $$
@@ -449,6 +449,7 @@ end $$;
 create or replace function stock_alerta(c ctx_t, p jsonb, p_nuevo numeric) returns void language plpgsql as $$
 declare mn numeric := coalesce((p ->> 'Stock_Minimo')::numeric, 0); act text := cfg_get(c.tid, 'ALERTA_STOCK_ACTIVA');
 begin
+  if coalesce((p ->> 'Es_Preparado')::boolean, false) then return; end if;
   if act is not null and not bj(act) then return; end if;
   if p_nuevo > mn then return; end if;
   if exists (select 1 from "Alertas" where tenant_id = c.tid and "Tipo" = 'Stock minimo' and "Referencia" = p ->> 'ID_Producto' and not "Leida") then return; end if;
@@ -478,7 +479,7 @@ begin
   if tiene_col(t, 'Fecha_Creacion') and coalesce(datos ->> 'Fecha_Creacion', '') = '' then datos := datos || jsonb_build_object('Fecha_Creacion', ahora); end if;
   if tiene_col(t, 'Fecha') and coalesce(datos ->> 'Fecha', '') = '' and t <> 'Detalle_Compra' then datos := datos || jsonb_build_object('Fecha', ahora); end if;
   if t = 'Productos' then
-    stock0 := nj(d -> 'datos', 'Stock_Actual');
+    stock0 := case when coalesce((datos ->> 'Es_Preparado')::boolean, false) then 0 else nj(d -> 'datos', 'Stock_Actual') end;
     if coalesce(datos ->> 'Nombre', '') = '' then perform fail_('El producto necesita un nombre'); end if;
     datos := datos || jsonb_build_object('Stock_Actual', stock0);
     if coalesce(datos ->> 'Codigo_Barras', '') <> '' then
@@ -495,7 +496,7 @@ begin
 end $$;
 
 create or replace function a_actualizar(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
-declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text; datos jsonb;
+declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text; datos jsonb; usos text; cur jsonb;
 begin
   if cfg is null then perform fail_('No se puede editar ' || t); end if;
   perform need_(c, cfg ->> 'module', 'Editar');
@@ -503,21 +504,39 @@ begin
   k := cfg ->> 'key';
   if get_row(c.tid, t, k, tj(d, 'id')) is null then perform fail_('Registro no encontrado'); end if;
   datos := limpiar_datos(t, coalesce(d -> 'datos', '{}'::jsonb)) - k;
-  if t = 'Productos' then datos := datos - 'Stock_Actual'; end if;
+  if t = 'Productos' then
+    datos := datos - 'Stock_Actual';
+    if datos ? 'Es_Preparado' then
+      cur := get_row(c.tid, t, k, d ->> 'id');
+      if (datos ->> 'Es_Preparado')::boolean and not coalesce((cur ->> 'Es_Preparado')::boolean, false) then
+        usos := usado_como_ingrediente(c, d ->> 'id');
+        if usos <> '' then perform fail_('No se puede marcar como preparado: es ingrediente de ' || usos); end if;
+      end if;
+      if not (datos ->> 'Es_Preparado')::boolean and coalesce((cur ->> 'Es_Preparado')::boolean, false) then
+        delete from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = d ->> 'id';
+      end if;
+    end if;
+  end if;
   perform upd_row(c.tid, t, k, d ->> 'id', datos);
   perform audit_(c, cfg ->> 'module', 'Editar', d ->> 'id', t);
   return to_jsonb(true);
 end $$;
 
 create or replace function a_eliminar(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
-declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text;
+declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text; usos text; cur jsonb;
 begin
   if cfg is null then perform fail_('No se puede eliminar en ' || t); end if;
   perform need_(c, cfg ->> 'module', 'Eliminar');
   if t in ('Roles', 'Permisos', 'Permisos_Usuario') and not is_master(c) then perform fail_('Solo el Master puede modificar roles y permisos', 'PERM'); end if;
   if t = 'Roles' and tj(d, 'id') = 'R01' then perform fail_('No se puede eliminar el rol Master'); end if;
   k := cfg ->> 'key';
-  if get_row(c.tid, t, k, tj(d, 'id')) is null then perform fail_('Registro no encontrado'); end if;
+  cur := get_row(c.tid, t, k, tj(d, 'id'));
+  if cur is null then perform fail_('Registro no encontrado'); end if;
+  if t = 'Productos' then
+    usos := usado_como_ingrediente(c, d ->> 'id');
+    if usos <> '' then perform fail_('No se puede eliminar "' || (cur ->> 'Nombre') || '": es ingrediente de ' || usos || '. Quítalo primero de esas recetas.'); end if;
+    delete from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = d ->> 'id';
+  end if;
   perform del_row(c.tid, t, k, d ->> 'id');
   perform audit_(c, cfg ->> 'module', 'Eliminar', d ->> 'id', t);
   return to_jsonb(true);
@@ -530,6 +549,9 @@ begin
   perform need_(c, 'Inventario', 'Editar');
   p := get_row(c.tid, 'Productos', 'ID_Producto', tj(d, 'ID_Producto'));
   if p is null then perform fail_('Producto no encontrado'); end if;
+  if coalesce((p ->> 'Es_Preparado')::boolean, false) then
+    perform fail_('"' || (p ->> 'Nombre') || '" es un producto preparado: su stock depende de sus ingredientes. Ajusta el stock de los ingredientes.');
+  end if;
   antes := (p ->> 'Stock_Actual')::numeric;
   if tipo = 'Ajuste' then
     despues := nj(d, 'nuevoStock');
@@ -547,6 +569,45 @@ begin
   perform stock_alerta(c, p, despues);
   perform audit_(c, 'Inventario', 'Editar', p ->> 'ID_Producto', tipo || ': ' || trim_scale(antes)::text || ' → ' || trim_scale(despues)::text);
   return jsonb_build_object('ID_Producto', p ->> 'ID_Producto', 'Stock_Actual', despues);
+end $$;
+
+-- ---------- Productos preparados (recetas) ----------
+-- Un producto «preparado» (ej. hamburguesa) no lleva stock propio: al venderlo se descuentan sus ingredientes.
+create or replace function usado_como_ingrediente(c ctx_t, p_id text) returns text language sql stable as $$
+  select coalesce(string_agg(distinct coalesce(pr."Nombre", ri."ID_Producto"), ', '), '')
+  from "Receta_Ingredientes" ri
+  left join "Productos" pr on pr.tenant_id = ri.tenant_id and pr."ID_Producto" = ri."ID_Producto"
+  where ri.tenant_id = c.tid and ri."ID_Ingrediente" = p_id $$;
+
+-- Guarda (reemplaza) la receta de un producto preparado y deja su costo calculado en Precio_Compra.
+create or replace function a_guardar_receta(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare p jsonb; ing jsonb; x jsonb; vistos text[] := '{}'; filas jsonb := '[]'::jsonb; costo numeric := 0; cant numeric; n integer;
+begin
+  perform need_(c, 'Inventario', 'Editar');
+  p := get_row(c.tid, 'Productos', 'ID_Producto', tj(d, 'ID_Producto'));
+  if p is null then perform fail_('Producto no encontrado'); end if;
+  if not coalesce((p ->> 'Es_Preparado')::boolean, false) then perform fail_('Primero marca el producto como «preparado» (casilla en la ficha del producto).'); end if;
+  for x in select * from jsonb_array_elements(coalesce(d -> 'ingredientes', '[]'::jsonb)) loop
+    ing := get_row(c.tid, 'Productos', 'ID_Producto', tj(x, 'ID_Ingrediente'));
+    if ing is null then perform fail_('Ingrediente no encontrado: ' || tj(x, 'ID_Ingrediente')); end if;
+    if ing ->> 'ID_Producto' = p ->> 'ID_Producto' then perform fail_('Un producto no puede ser ingrediente de sí mismo'); end if;
+    if coalesce((ing ->> 'Es_Preparado')::boolean, false) then perform fail_('"' || (ing ->> 'Nombre') || '" también es un producto preparado. Los ingredientes deben ser productos de inventario.'); end if;
+    if (ing ->> 'ID_Producto') = any(vistos) then perform fail_('"' || (ing ->> 'Nombre') || '" está repetido en la receta'); end if;
+    vistos := vistos || (ing ->> 'ID_Producto');
+    cant := nj(x, 'Cantidad');
+    if not (cant > 0) then perform fail_('Cantidad inválida en "' || (ing ->> 'Nombre') || '"'); end if;
+    costo := costo + cant * (ing ->> 'Precio_Compra')::numeric;
+    filas := filas || jsonb_build_object('ID_Receta', nuevo_id('RI'), 'ID_Producto', p ->> 'ID_Producto', 'ID_Ingrediente', ing ->> 'ID_Producto', 'Cantidad', cant,
+      'Cantidad_Receta', case when nj(x, 'Cantidad_Receta') > 0 then nj(x, 'Cantidad_Receta') else cant end, 'Unidad_Receta', left(tj(x, 'Unidad_Receta'), 20));
+  end loop;
+  n := jsonb_array_length(filas);
+  if n = 0 then perform fail_('Agrega al menos un ingrediente a la receta'); end if;
+  costo := r2(costo);
+  delete from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = p ->> 'ID_Producto';
+  for x in select * from jsonb_array_elements(filas) loop perform ins_row(c.tid, 'Receta_Ingredientes', x); end loop;
+  update "Productos" set "Precio_Compra" = costo where tenant_id = c.tid and "ID_Producto" = p ->> 'ID_Producto';
+  perform audit_(c, 'Inventario', 'Editar', p ->> 'ID_Producto', 'Receta: ' || n::text || ' ingredientes, costo ' || trim_scale(costo)::text);
+  return jsonb_build_object('ID_Producto', p ->> 'ID_Producto', 'Costo', costo, 'ingredientes', n);
 end $$;
 
 create or replace function a_marcar_alertas(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
@@ -600,6 +661,7 @@ begin
   for it in select * from jsonb_array_elements(items) loop
     p := get_row(c.tid, 'Productos', 'ID_Producto', tj(it, 'ID_Producto'));
     if p is null then perform fail_('Producto no encontrado: ' || tj(it, 'ID_Producto')); end if;
+    if coalesce((p ->> 'Es_Preparado')::boolean, false) then perform fail_('"' || (p ->> 'Nombre') || '" es un producto preparado: no se compra, se prepara con sus ingredientes'); end if;
     cant := nj(it, 'Cantidad'); costo := nj(it, 'Costo_Unitario');
     if not (cant > 0) then perform fail_('Cantidad inválida para ' || (p ->> 'Nombre')); end if;
     if costo < 0 then perform fail_('Costo inválido para ' || (p ->> 'Nombre')); end if;
@@ -687,6 +749,7 @@ declare
   p jsonb; stock numeric; precio numeric; sub numeric; subtotal numeric := 0; descuento numeric; costo_del numeric := 0; total numeric;
   tipo_doc text; venta jsonb; nuevo numeric; cfg jsonb := cfg_all(c.tid); dl jsonb; cli jsonb; servicio jsonb; doc jsonb; imp numeric; neto numeric;
   dd jsonb := coalesce(d -> 'delivery', '{}'::jsonb); det jsonb := '[]'::jsonb;
+  consumo jsonb := '{}'::jsonb; usos jsonb := '{}'::jsonb; costo numeric; need numeric; rec record; k text; v text;
 begin
   perform need_(c, 'Ventas', 'Crear');
   if jsonb_array_length(items) = 0 then perform fail_('La venta no tiene productos'); end if;
@@ -711,12 +774,38 @@ begin
     p := get_row(c.tid, 'Productos', 'ID_Producto', pid);
     if p is null then perform fail_('Producto no existe: ' || pid); end if;
     if not (p ->> 'Activo')::boolean then perform fail_('El producto "' || (p ->> 'Nombre') || '" está desactivado'); end if;
-    q := (cant ->> pid)::numeric; stock := (p ->> 'Stock_Actual')::numeric;
-    if q > stock and not negativo then perform fail_('Stock insuficiente de "' || (p ->> 'Nombre') || '" (disponible: ' || trim_scale(stock)::text || ')'); end if;
+    q := (cant ->> pid)::numeric;
+    costo := (p ->> 'Precio_Compra')::numeric;
+    if coalesce((p ->> 'Es_Preparado')::boolean, false) then
+      if not exists (select 1 from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = pid) then
+        perform fail_('"' || (p ->> 'Nombre') || '" no tiene ingredientes. Agrega su receta en Inventario.');
+      end if;
+      costo := 0;
+      for rec in select ri."ID_Ingrediente" as iid, ri."Cantidad" as cant_ing, pr."Precio_Compra" as costo_ing
+          from "Receta_Ingredientes" ri join "Productos" pr on pr.tenant_id = ri.tenant_id and pr."ID_Producto" = ri."ID_Ingrediente"
+          where ri.tenant_id = c.tid and ri."ID_Producto" = pid order by ri._orden loop
+        consumo := consumo || jsonb_build_object(rec.iid, coalesce((consumo ->> rec.iid)::numeric, 0) + q * rec.cant_ing);
+        usos := usos || jsonb_build_object(rec.iid, coalesce((usos ->> rec.iid) || ', ', '') || (p ->> 'Nombre') || ' ×' || trim_scale(q)::text);
+        costo := costo + rec.cant_ing * rec.costo_ing;
+      end loop;
+      costo := r2(costo);
+    else
+      consumo := consumo || jsonb_build_object(pid, coalesce((consumo ->> pid)::numeric, 0) + q);
+    end if;
     precio := (p ->> 'Precio_Venta')::numeric; sub := r2(q * precio); subtotal := subtotal + sub;
     det := det || jsonb_build_object('ID_Detalle', nuevo_id('DV'), 'ID_Venta', idv, 'ID_Producto', pid, 'Nombre_Producto', p ->> 'Nombre',
-      'ID_Categoria', p ->> 'ID_Categoria', 'Cantidad', q, 'Precio_Unitario', precio, 'Costo_Unitario', (p ->> 'Precio_Compra')::numeric,
+      'ID_Categoria', p ->> 'ID_Categoria', 'Cantidad', q, 'Precio_Unitario', precio, 'Costo_Unitario', costo,
       'Descuento', 0, 'Subtotal', sub, 'Fecha', fecha, 'Nota', coalesce(notas ->> pid, ''), 'Va_A_Cocina', coalesce((p ->> 'Va_A_Cocina')::boolean, true));
+  end loop;
+  for k, v in select key, value from jsonb_each_text(consumo) loop
+    p := get_row(c.tid, 'Productos', 'ID_Producto', k);
+    need := round(v::numeric, 4); stock := (p ->> 'Stock_Actual')::numeric;
+    if need > stock and not negativo then
+      if usos ? k then
+        perform fail_('Falta "' || (p ->> 'Nombre') || '" para preparar ' || (usos ->> k) || ' (disponible: ' || trim_scale(stock)::text || ', necesario: ' || trim_scale(need)::text || ')');
+      end if;
+      perform fail_('Stock insuficiente de "' || (p ->> 'Nombre') || '" (disponible: ' || trim_scale(stock)::text || ')');
+    end if;
   end loop;
   subtotal := r2(subtotal);
   descuento := r2(greatest(0, nj(d, 'descuento')));
@@ -734,11 +823,13 @@ begin
   perform ins_row(c.tid, 'Ventas', venta);
   for it in select * from jsonb_array_elements(det) loop
     perform ins_row(c.tid, 'Detalle_Venta', it);
-    pid := it ->> 'ID_Producto';
-    p := get_row(c.tid, 'Productos', 'ID_Producto', pid);
-    stock := (p ->> 'Stock_Actual')::numeric; nuevo := stock - (it ->> 'Cantidad')::numeric;
-    update "Productos" set "Stock_Actual" = nuevo where tenant_id = c.tid and "ID_Producto" = pid;
-    perform mov_stock(c, pid, 'Salida venta', (it ->> 'Cantidad')::numeric, stock, nuevo, idv, '', ahora);
+  end loop;
+  -- Se descuenta el stock de los productos sueltos y de los ingredientes de los productos preparados
+  for k, v in select key, value from jsonb_each_text(consumo) loop
+    p := get_row(c.tid, 'Productos', 'ID_Producto', k);
+    need := round(v::numeric, 4); stock := (p ->> 'Stock_Actual')::numeric; nuevo := round(stock - need, 4);
+    update "Productos" set "Stock_Actual" = nuevo where tenant_id = c.tid and "ID_Producto" = k;
+    perform mov_stock(c, k, 'Salida venta', need, stock, nuevo, idv, case when usos ? k then 'Ingrediente de ' || (usos ->> k) else '' end, ahora);
     perform stock_alerta(c, p, nuevo);
   end loop;
   if entrega = 'Delivery' then
@@ -792,18 +883,25 @@ begin
 end $$;
 
 create or replace function a_anular_venta(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
-declare v jsonb; r record; p jsonb; antes numeric; despues numeric; fh text := ahora_txt(c.tz);
+declare v jsonb; r record; p jsonb; antes numeric; despues numeric; fh text := ahora_txt(c.tz); devolver jsonb;
 begin
   perform need_(c, 'Ventas', 'Eliminar');
   v := get_row(c.tid, 'Ventas', 'ID_Venta', tj(d, 'ID_Venta'));
   if v is null then perform fail_('Venta no encontrada'); end if;
   if v ->> 'Estado' = 'Anulada' then perform fail_('La venta ya está anulada'); end if;
-  for r in select * from "Detalle_Venta" where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta' order by _orden loop
-    p := get_row(c.tid, 'Productos', 'ID_Producto', r."ID_Producto");
-    if p is null then continue; end if;
-    antes := (p ->> 'Stock_Actual')::numeric; despues := antes + r."Cantidad";
-    update "Productos" set "Stock_Actual" = despues where tenant_id = c.tid and "ID_Producto" = r."ID_Producto";
-    perform mov_stock(c, r."ID_Producto", 'Anulacion venta', r."Cantidad", antes, despues, d ->> 'ID_Venta', tj(d, 'motivo'), fh);
+  -- Se devuelve exactamente lo que se descontó al vender (productos sueltos e ingredientes de preparados)
+  select jsonb_agg(jsonb_build_object('id', "ID_Producto", 'cant', "Cantidad") order by _orden) into devolver
+  from "Movimientos_Inventario" where tenant_id = c.tid and "Referencia" = d ->> 'ID_Venta' and "Tipo" = 'Salida venta';
+  if devolver is null then
+    select jsonb_agg(jsonb_build_object('id', "ID_Producto", 'cant', "Cantidad") order by _orden) into devolver
+    from "Detalle_Venta" where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta';
+  end if;
+  for r in select e ->> 'id' as pid, (e ->> 'cant')::numeric as cant from jsonb_array_elements(coalesce(devolver, '[]'::jsonb)) e loop
+    p := get_row(c.tid, 'Productos', 'ID_Producto', r.pid);
+    if p is null or coalesce((p ->> 'Es_Preparado')::boolean, false) then continue; end if;
+    antes := (p ->> 'Stock_Actual')::numeric; despues := round(antes + r.cant, 4);
+    update "Productos" set "Stock_Actual" = despues where tenant_id = c.tid and "ID_Producto" = r.pid;
+    perform mov_stock(c, r.pid, 'Anulacion venta', r.cant, antes, despues, d ->> 'ID_Venta', tj(d, 'motivo'), fh);
   end loop;
   update "Ventas" set "Estado" = 'Anulada' where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta';
   update "Servicios_Delivery" set "Estado" = 'Cancelado' where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta' and "Estado" <> 'Finalizado';
@@ -999,7 +1097,7 @@ begin
     select "Nombre_Delivery", count(*) k, sum("Monto_Delivery") m, sum("Distancia_Km") km from "Servicios_Delivery"
     where tenant_id = c.tid and "Estado" = 'Finalizado' and left("Fecha", 10) between desde and hasta group by "Nombre_Delivery") t;
   select coalesce(jsonb_agg(jsonb_build_object('nombre', "Nombre", 'stock', "Stock_Actual", 'minimo', "Stock_Minimo") order by _orden), '[]'::jsonb) into bajo
-  from "Productos" where tenant_id = c.tid and "Activo" and "Stock_Actual" <= "Stock_Minimo";
+  from "Productos" where tenant_id = c.tid and "Activo" and not "Es_Preparado" and "Stock_Actual" <= "Stock_Minimo";
   return jsonb_build_object('ventas', n, 'total', r2(tot), 'ticketPromedio', case when n > 0 then r2(tot / n) else 0 end, 'margen', r2(margen),
     'topProductos', top, 'porDia', pdia, 'porHora', phora, 'porCategoria', pcat, 'delivery', del, 'bajoStock', bajo);
 end $$;
@@ -1164,7 +1262,7 @@ begin
     delete from sesiones where token_hash = hash_token(token);
     return jsonb_build_object('ok', true, 'data', true);
   end if;
-  if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','crearVenta','anularVenta','pagarVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
+  if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','guardarReceta','crearVenta','anularVenta','pagarVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
     perform fail_('Acción desconocida: ' || accion);
   end if;
   -- Un repartidor SOLO puede operar sus propios pedidos: nada de crear/editar/borrar otras cosas, aunque tenga permisos marcados
@@ -1177,7 +1275,7 @@ begin
   if f is not null then perform needfeat_(c, f); end if;
   if accion in ('listar', 'crear', 'actualizar', 'eliminar') and tabla_funcion(tj(d, 'tabla')) is not null then perform needfeat_(c, tabla_funcion(d ->> 'tabla')); end if;
   if accion = 'crearVenta' and tj(d, 'tipoEntrega') = 'Delivery' then perform needfeat_(c, 'delivery'); end if;
-  if accion in ('crear', 'actualizar', 'eliminar', 'ajustarStock', 'crearVenta', 'anularVenta', 'pagarVenta', 'servicioEstado', 'crearCompra', 'recibirCompra', 'anularCompra',
+  if accion in ('crear', 'actualizar', 'eliminar', 'ajustarStock', 'guardarReceta', 'crearVenta', 'anularVenta', 'pagarVenta', 'servicioEstado', 'crearCompra', 'recibirCompra', 'anularCompra',
                 'guardarConfig', 'usuariosCrear', 'usuariosActualizar', 'usuariosPassword', 'permisosGuardar', 'marcarAlertas') then
     perform pg_advisory_xact_lock(hashtextextended(c.tid::text, 0));
   end if;
@@ -1189,6 +1287,7 @@ begin
     when 'actualizar' then a_actualizar(c, d)
     when 'eliminar' then a_eliminar(c, d)
     when 'ajustarStock' then a_ajustar_stock(c, d)
+    when 'guardarReceta' then a_guardar_receta(c, d)
     when 'crearVenta' then a_crear_venta(c, d)
     when 'anularVenta' then a_anular_venta(c, d)
     when 'pagarVenta' then a_pagar_venta(c, d)

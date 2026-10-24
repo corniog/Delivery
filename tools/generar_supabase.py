@@ -66,6 +66,9 @@ for nombre, cols in d["tablas"].items():
         lines.append(f"  {q(c)} {tipo(t)} not null default {defecto(c, t)}")
     lines.append(f"  primary key (tenant_id, {q(cols[0][0])})")
     out.append(f"create table if not exists {q(nombre)} (\n" + ",\n".join(lines) + "\n);")
+    # Bases ya creadas: agrega las columnas nuevas (seguro de repetir)
+    for c, t in cols[1:]:
+        out.append(f"alter table {q(nombre)} add column if not exists {q(c)} {tipo(t)} not null default {defecto(c, t)};")
 out.append("""
 create unique index if not exists usuarios_email_unico on "Usuarios" (lower("Email"));
 create index if not exists ventas_fecha on "Ventas" (tenant_id, "Fecha_Hora");

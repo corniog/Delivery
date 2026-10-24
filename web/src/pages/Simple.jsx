@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import Crud from '../Crud.jsx';
+import { useMemo, useState } from 'react';
+import Crud, { useTable } from '../Crud.jsx';
+import RecetaModal from './Receta.jsx';
+import { esPreparado, agrupar, maxVendible } from '../recetas.js';
 import { call } from '../api.js';
 import { Modal, useFmt, useToast, fdt } from '../ui.jsx';
 import { useAuth } from '../auth.jsx';
@@ -7,24 +9,40 @@ import { useAuth } from '../auth.jsx';
 export function Productos() {
   const { money } = useFmt();
   const [adj, setAdj] = useState(null);
+  const [receta, setReceta] = useState(null);
+  const [ver, setVer] = useState(0);
+  const prods = useTable('Productos');
+  const recs = useTable('Receta_Ingredientes');
+  const recargar = () => { prods.reload(); recs.reload(); setVer((v) => v + 1); };
+  const info = useMemo(() => {
+    const byId = Object.fromEntries((prods.rows || []).map((p) => [p.ID_Producto, p]));
+    return { byId, recetas: agrupar(recs.rows) };
+  }, [prods.rows, recs.rows]);
+  const preparado = (d) => d.Es_Preparado === true || String(d.Es_Preparado).toUpperCase() === 'TRUE';
   return (
     <>
       <Crud
+        key={ver}
         title="Inventario" tabla="Productos" module="Inventario" idKey="ID_Producto"
-        searchKeys={['Nombre', 'Codigo_Barras', 'SKU']} defaults={{ Activo: true, Va_A_Cocina: true, Stock_Actual: 0, Stock_Minimo: 0, Unidad_Medida: 'Unidad' }}
+        searchKeys={['Nombre', 'Codigo_Barras', 'SKU']} defaults={{ Activo: true, Va_A_Cocina: true, Es_Preparado: false, Stock_Actual: 0, Stock_Minimo: 0, Unidad_Medida: 'Unidad' }}
         filterRef={{ ref: 'Categorias', refKey: 'ID_Categoria', key: 'ID_Categoria', label: 'Categoría' }}
-        rowClass={(r) => (Number(r.Stock_Actual) <= Number(r.Stock_Minimo) ? 'low' : '')}
+        rowClass={(r) => (!esPreparado(r) && Number(r.Stock_Actual) <= Number(r.Stock_Minimo) ? 'low' : '')}
+        onSaved={({ row, nuevo, prev }) => {
+          prods.reload(); recs.reload();
+          if (esPreparado(row) && (nuevo || !esPreparado(prev))) setReceta(row);
+        }}
         fields={[
           { key: 'Nombre', label: 'Nombre', required: true },
           { key: 'Codigo_Barras', label: 'Código de barras', type: 'barcode' },
           { key: 'SKU', label: 'SKU / código interno' },
           { key: 'ID_Categoria', label: 'Categoría', type: 'ref', ref: 'Categorias', refKey: 'ID_Categoria' },
+          { key: 'Es_Preparado', label: 'Es un producto preparado (lleva receta; al vender se descuentan sus ingredientes)', type: 'bool' },
           { key: 'Unidad_Medida', label: 'Unidad de medida', type: 'ref', ref: 'Unidades', refKey: 'Unidad', refLabel: 'Unidad' },
-          { key: 'Precio_Compra', label: 'Precio de compra', type: 'number' },
+          { key: 'Precio_Compra', label: 'Precio de compra', type: 'number', hideIf: preparado },
           { key: 'Precio_Venta', label: 'Precio de venta', type: 'number', required: true },
-          { key: 'Stock_Actual', label: 'Stock inicial', type: 'number', onlyCreate: true },
-          { key: 'Stock_Minimo', label: 'Stock mínimo (alerta)', type: 'number' },
-          { key: 'ID_Proveedor', label: 'Proveedor', type: 'ref', ref: 'Proveedores', refKey: 'ID_Proveedor' },
+          { key: 'Stock_Actual', label: 'Stock inicial', type: 'number', onlyCreate: true, hideIf: preparado },
+          { key: 'Stock_Minimo', label: 'Stock mínimo (alerta)', type: 'number', hideIf: preparado },
+          { key: 'ID_Proveedor', label: 'Proveedor', type: 'ref', ref: 'Proveedores', refKey: 'ID_Proveedor', hideIf: preparado },
           { key: 'Activo', label: 'Disponible para venta', type: 'bool' },
           { key: 'Va_A_Cocina', label: 'Sale en la comanda de cocina', type: 'bool' },
           { key: 'Imagen', label: 'Imagen', type: 'image' }
@@ -34,14 +52,28 @@ export function Productos() {
           { key: 'Nombre', label: 'Producto' },
           { key: 'ID_Categoria', label: 'Categoría', type: 'ref', ref: 'Categorias', refKey: 'ID_Categoria' },
           { key: 'Precio_Venta', label: 'Precio', render: (r) => money(r.Precio_Venta) },
-          { key: 'Stock_Actual', label: 'Stock', render: (r) => <span>{Number(r.Stock_Actual)} {r.Unidad_Medida} {Number(r.Stock_Actual) <= Number(r.Stock_Minimo) && <span className="badge bad">Bajo</span>}</span> },
-          { key: 'Stock_Minimo', label: 'Mínimo' }
+          { key: 'Stock_Actual', label: 'Stock', render: (r) => {
+            if (esPreparado(r)) {
+              const rec = info.recetas[r.ID_Producto] || [];
+              const n = rec.length ? maxVendible(r, info.byId, info.recetas, {}, false) : 0;
+              return rec.length ? <span><span className="badge">Preparado</span> alcanza para {n}</span> : <span><span className="badge warn">Preparado</span> sin receta</span>;
+            }
+            return <span>{Number(r.Stock_Actual)} {r.Unidad_Medida} {Number(r.Stock_Actual) <= Number(r.Stock_Minimo) && <span className="badge bad">Bajo</span>}</span>;
+          } },
+          { key: 'Stock_Minimo', label: 'Mínimo', render: (r) => (esPreparado(r) ? '—' : r.Stock_Minimo) }
         ]}
-        extraActions={(r, reload) => <PermBtn onClick={() => setAdj({ r, reload })} />}
+        extraActions={(r, reload) => (esPreparado(r)
+          ? <RecetaBtn onClick={() => setReceta(r)} />
+          : <PermBtn onClick={() => setAdj({ r, reload: () => { reload(); recargar(); } })} />)}
       />
       {adj && <StockModal {...adj} onClose={() => setAdj(null)} />}
+      {receta && <RecetaModal producto={receta} onClose={() => setReceta(null)} onSaved={recargar} />}
     </>
   );
+}
+function RecetaBtn({ onClick }) {
+  const { can } = useAuth();
+  return can('Inventario', 'Editar') ? <button className="btn sm primary" onClick={onClick}>Receta</button> : null;
 }
 function PermBtn({ onClick }) {
   const { can } = useAuth();

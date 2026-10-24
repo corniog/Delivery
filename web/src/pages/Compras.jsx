@@ -1,14 +1,17 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
+import { esPreparado } from '../recetas.js';
+import { mensajeCompra, asuntoCompra, linkWhatsApp, linkCorreo, compartirPdf, telefonoWa } from '../compartir.js';
 import { Icon, Modal, Confirm, Scanner, useFmt, useToast, fdt, today, daysAgo } from '../ui.jsx';
 
 const cls = { Recibida: 'ok', Pendiente: 'warn', Anulada: 'bad' };
 
 export default function Compras() {
-  const { can } = useAuth();
+  const { can, config } = useAuth();
   const { money } = useFmt();
   const toast = useToast();
+  const [provs, setProvs] = useState([]);
   const [f, setF] = useState({ desde: daysAgo(30), hasta: today(), estado: '' });
   const [r, setR] = useState(null);
   const [nueva, setNueva] = useState(false);
@@ -18,6 +21,7 @@ export default function Compras() {
     try { setR(await call('listarCompras', { desde: f.desde, hasta: f.hasta, estado: f.estado })); } catch (e) { toast(e.message, true); setR({ rows: [], total: 0, cantidad: 0 }); }
   }, [f.desde, f.hasta, f.estado, toast]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { listar('Proveedores').then(setProvs).catch(() => {}); }, []);
 
   const recibir = async (c) => {
     try { await call('recibirCompra', { ID_Compra: c.ID_Compra }); toast('Compra recibida: stock actualizado'); setOpen(null); load(); } catch (e) { toast(e.message, true); }
@@ -67,6 +71,7 @@ export default function Compras() {
                   <td data-label="Costo" className="right">{money(i.Costo_Unitario)}</td><td data-label="Subtotal" className="right">{money(i.Subtotal)}</td></tr>))}</tbody>
               <tfoot><tr><td colSpan={3}>Total</td><td className="right">{money(open.Total)}</td></tr></tfoot>
             </table>
+            {open.Estado !== 'Anulada' && <Compartir compra={compraCon(open, provs)} negocio={config.NOMBRE_NEGOCIO} />}
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               {open.Estado === 'Pendiente' && can('Proveedores', 'Editar') && <button className="btn ok" onClick={() => recibir(open)}>Marcar como recibida</button>}
               {open.Estado !== 'Anulada' && can('Proveedores', 'Eliminar') && <button className="btn danger" onClick={() => setAnular(open)}>Anular</button>}
@@ -75,6 +80,41 @@ export default function Compras() {
         </Modal>)}
       {anular && <Confirm yesText="Anular" text={`¿Anular la compra ${anular.ID_Compra}? ${anular.Estado === 'Recibida' ? 'Se descontará del stock lo que ingresó.' : ''}`} onYes={doAnular} onNo={() => setAnular(null)} />}
       {nueva && <NuevaCompra onClose={() => setNueva(false)} onDone={() => { setNueva(false); load(); }} />}
+    </div>
+  );
+}
+
+const compraCon = (c, provs) => {
+  const p = provs.find((x) => x.ID_Proveedor === c.ID_Proveedor) || {};
+  return { ...c, TelefonoProveedor: p.Telefono || '', EmailProveedor: p.Email || '' };
+};
+
+// Enviar la solicitud al proveedor: WhatsApp (wa.me), correo del teléfono, o PDF compartido.
+function Compartir({ compra, negocio }) {
+  const { money } = useFmt();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const texto = mensajeCompra(compra, negocio, money);
+  const asunto = asuntoCompra(compra, negocio);
+  const pdf = async () => {
+    setBusy(true);
+    try {
+      const r = await compartirPdf(compra, negocio, money, texto);
+      if (r === 'descargado') toast('PDF descargado. Adjúntalo en WhatsApp o en tu correo.');
+    } catch (e) { toast('No se pudo crear el PDF: ' + e.message, true); }
+    setBusy(false);
+  };
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      <div className="muted small">Enviar solicitud al proveedor</div>
+      <div className="row">
+        <a className="btn ok" href={linkWhatsApp(compra, texto)} target="_blank" rel="noreferrer"
+          onClick={() => { if (!telefonoWa(compra.TelefonoProveedor)) toast('El proveedor no tiene teléfono: elige el contacto en WhatsApp'); }}>WhatsApp</a>
+        <a className="btn" href={linkCorreo(compra, asunto, texto)}
+          onClick={() => { if (!compra.EmailProveedor) toast('El proveedor no tiene correo: escríbelo en tu app de correo'); }}>Correo</a>
+        <button className="btn primary" disabled={busy} onClick={pdf}>{busy ? 'Creando PDF…' : 'Compartir ticket PDF'}</button>
+      </div>
+      <div className="muted small">WhatsApp y Correo abren la app con el mensaje listo. «Compartir ticket PDF» abre el menú del teléfono para enviar el PDF con el mensaje por WhatsApp, correo u otra app.</div>
     </div>
   );
 }
@@ -94,7 +134,7 @@ function NuevaCompra({ onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     listar('Proveedores').then(setProvs).catch((e) => toast(e.message, true));
-    listar('Productos').then((p) => setProds(p.filter((x) => String(x.Activo).toUpperCase() !== 'FALSE'))).catch((e) => toast(e.message, true));
+    listar('Productos').then((p) => setProds(p.filter((x) => String(x.Activo).toUpperCase() !== 'FALSE' && !esPreparado(x)))).catch((e) => toast(e.message, true));
   }, [toast]);
 
   const add = (p) => setLines((ls) => ls.find((l) => l.ID_Producto === p.ID_Producto) ? ls

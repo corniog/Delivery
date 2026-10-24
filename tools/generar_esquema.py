@@ -84,6 +84,15 @@ T["Productos"] = [
  ("Activo","Yes/No","Producto disponible para venta","TRUE"),
  ("Fecha_Creacion","DateTime","Automático",now),
  ("Va_A_Cocina","Yes/No","Si es TRUE (o vacío) el producto sale en la comanda de cocina","TRUE"),
+ ("Es_Preparado","Yes/No","TRUE = producto que se prepara al vender (ej. hamburguesa): no lleva stock propio, al vender se descuentan sus ingredientes (Receta_Ingredientes)","FALSE"),
+]
+T["Receta_Ingredientes"] = [
+ ("ID_Receta","Text (KEY)","Identificador","RI0001"),
+ ("ID_Producto","Ref → Productos","Producto preparado (Es_Preparado = TRUE)","P0010"),
+ ("ID_Ingrediente","Ref → Productos","Producto de inventario que se usa como ingrediente","P0002"),
+ ("Cantidad","Decimal","Cantidad por 1 unidad vendida, en la unidad de medida del ingrediente (es la que se descuenta del stock)","0.2"),
+ ("Cantidad_Receta","Decimal","Cantidad tal como la escribió el usuario (ej. 200)","200"),
+ ("Unidad_Receta","Text","Unidad con la que la escribió (ej. g, kg, ml, lt, un)","g"),
 ]
 T["Movimientos_Inventario"] = [
  ("ID_Mov","Text (KEY)","Identificador","M00001"),
@@ -368,7 +377,7 @@ lines = [
  ("Dorado = columna llave (KEY, valor único).   Azul claro = columna de relación (Ref a otra tabla).   Azul oscuro = columna normal.", ""),
  ("", ""),
  ("MÓDULOS Y TABLAS", "h"),
- ("Inventario: Productos, Categorias, Unidades, Movimientos_Inventario, Compras, Detalle_Compra", ""),
+ ("Inventario: Productos, Receta_Ingredientes, Categorias, Unidades, Movimientos_Inventario, Compras, Detalle_Compra", ""),
  ("Ventas: Ventas, Detalle_Venta, Documentos", ""),
  ("Clientes: Clientes", ""),
  ("Proveedores: Proveedores, Visitas_Proveedor", ""),

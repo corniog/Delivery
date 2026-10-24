@@ -60,6 +60,16 @@ create table if not exists "Usuarios" (
   "Fecha_Creacion" text not null default '',
   primary key (tenant_id, "ID_Usuario")
 );
+alter table "Usuarios" add column if not exists "Email" text not null default '';
+alter table "Usuarios" add column if not exists "Nombre" text not null default '';
+alter table "Usuarios" add column if not exists "Telefono" text not null default '';
+alter table "Usuarios" add column if not exists "ID_Rol" text not null default '';
+alter table "Usuarios" add column if not exists "ID_Delivery" text not null default '';
+alter table "Usuarios" add column if not exists "Activo" boolean not null default true;
+alter table "Usuarios" add column if not exists "Password_Hash" text not null default '';
+alter table "Usuarios" add column if not exists "Salt" text not null default '';
+alter table "Usuarios" add column if not exists "Ultimo_Login" text not null default '';
+alter table "Usuarios" add column if not exists "Fecha_Creacion" text not null default '';
 create table if not exists "Roles" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -68,6 +78,8 @@ create table if not exists "Roles" (
   "Descripcion" text not null default '',
   primary key (tenant_id, "ID_Rol")
 );
+alter table "Roles" add column if not exists "Nombre_Rol" text not null default '';
+alter table "Roles" add column if not exists "Descripcion" text not null default '';
 create table if not exists "Permisos" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -81,6 +93,13 @@ create table if not exists "Permisos" (
   "Exportar" boolean not null default false,
   primary key (tenant_id, "ID_Permiso")
 );
+alter table "Permisos" add column if not exists "ID_Rol" text not null default '';
+alter table "Permisos" add column if not exists "Modulo" text not null default '';
+alter table "Permisos" add column if not exists "Ver" boolean not null default false;
+alter table "Permisos" add column if not exists "Crear" boolean not null default false;
+alter table "Permisos" add column if not exists "Editar" boolean not null default false;
+alter table "Permisos" add column if not exists "Eliminar" boolean not null default false;
+alter table "Permisos" add column if not exists "Exportar" boolean not null default false;
 create table if not exists "Permisos_Usuario" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -94,6 +113,13 @@ create table if not exists "Permisos_Usuario" (
   "Exportar" boolean not null default false,
   primary key (tenant_id, "ID_PermU")
 );
+alter table "Permisos_Usuario" add column if not exists "ID_Usuario" text not null default '';
+alter table "Permisos_Usuario" add column if not exists "Modulo" text not null default '';
+alter table "Permisos_Usuario" add column if not exists "Ver" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Crear" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Editar" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Eliminar" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Exportar" boolean not null default false;
 create table if not exists "Configuracion" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -102,6 +128,8 @@ create table if not exists "Configuracion" (
   "Descripcion" text not null default '',
   primary key (tenant_id, "Clave")
 );
+alter table "Configuracion" add column if not exists "Valor" text not null default '';
+alter table "Configuracion" add column if not exists "Descripcion" text not null default '';
 create table if not exists "Categorias" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -112,6 +140,10 @@ create table if not exists "Categorias" (
   "Activo" boolean not null default true,
   primary key (tenant_id, "ID_Categoria")
 );
+alter table "Categorias" add column if not exists "Nombre" text not null default '';
+alter table "Categorias" add column if not exists "Imagen" text not null default '';
+alter table "Categorias" add column if not exists "Orden" numeric not null default 0;
+alter table "Categorias" add column if not exists "Activo" boolean not null default true;
 create table if not exists "Unidades" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -119,6 +151,7 @@ create table if not exists "Unidades" (
   "Abreviatura" text not null default '',
   primary key (tenant_id, "Unidad")
 );
+alter table "Unidades" add column if not exists "Abreviatura" text not null default '';
 create table if not exists "Productos" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -137,8 +170,40 @@ create table if not exists "Productos" (
   "Activo" boolean not null default true,
   "Fecha_Creacion" text not null default '',
   "Va_A_Cocina" boolean not null default true,
+  "Es_Preparado" boolean not null default false,
   primary key (tenant_id, "ID_Producto")
 );
+alter table "Productos" add column if not exists "Codigo_Barras" text not null default '';
+alter table "Productos" add column if not exists "SKU" text not null default '';
+alter table "Productos" add column if not exists "Nombre" text not null default '';
+alter table "Productos" add column if not exists "ID_Categoria" text not null default '';
+alter table "Productos" add column if not exists "Imagen" text not null default '';
+alter table "Productos" add column if not exists "Unidad_Medida" text not null default '';
+alter table "Productos" add column if not exists "Precio_Compra" numeric not null default 0;
+alter table "Productos" add column if not exists "Precio_Venta" numeric not null default 0;
+alter table "Productos" add column if not exists "Stock_Actual" numeric not null default 0;
+alter table "Productos" add column if not exists "Stock_Minimo" numeric not null default 0;
+alter table "Productos" add column if not exists "ID_Proveedor" text not null default '';
+alter table "Productos" add column if not exists "Activo" boolean not null default true;
+alter table "Productos" add column if not exists "Fecha_Creacion" text not null default '';
+alter table "Productos" add column if not exists "Va_A_Cocina" boolean not null default true;
+alter table "Productos" add column if not exists "Es_Preparado" boolean not null default false;
+create table if not exists "Receta_Ingredientes" (
+  tenant_id uuid not null references negocios(id) on delete cascade,
+  _orden bigint generated always as identity,
+  "ID_Receta" text not null default '',
+  "ID_Producto" text not null default '',
+  "ID_Ingrediente" text not null default '',
+  "Cantidad" numeric not null default 0,
+  "Cantidad_Receta" numeric not null default 0,
+  "Unidad_Receta" text not null default '',
+  primary key (tenant_id, "ID_Receta")
+);
+alter table "Receta_Ingredientes" add column if not exists "ID_Producto" text not null default '';
+alter table "Receta_Ingredientes" add column if not exists "ID_Ingrediente" text not null default '';
+alter table "Receta_Ingredientes" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Receta_Ingredientes" add column if not exists "Cantidad_Receta" numeric not null default 0;
+alter table "Receta_Ingredientes" add column if not exists "Unidad_Receta" text not null default '';
 create table if not exists "Movimientos_Inventario" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -154,6 +219,15 @@ create table if not exists "Movimientos_Inventario" (
   "Nota" text not null default '',
   primary key (tenant_id, "ID_Mov")
 );
+alter table "Movimientos_Inventario" add column if not exists "Fecha" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "ID_Producto" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Tipo" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Movimientos_Inventario" add column if not exists "Stock_Antes" numeric not null default 0;
+alter table "Movimientos_Inventario" add column if not exists "Stock_Despues" numeric not null default 0;
+alter table "Movimientos_Inventario" add column if not exists "Referencia" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Usuario" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Nota" text not null default '';
 create table if not exists "Clientes" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -168,6 +242,14 @@ create table if not exists "Clientes" (
   "Fecha_Creacion" text not null default '',
   primary key (tenant_id, "ID_Cliente")
 );
+alter table "Clientes" add column if not exists "Nombre" text not null default '';
+alter table "Clientes" add column if not exists "Documento" text not null default '';
+alter table "Clientes" add column if not exists "Telefono" text not null default '';
+alter table "Clientes" add column if not exists "Email" text not null default '';
+alter table "Clientes" add column if not exists "Direccion" text not null default '';
+alter table "Clientes" add column if not exists "Ubicacion" text not null default '';
+alter table "Clientes" add column if not exists "Notas" text not null default '';
+alter table "Clientes" add column if not exists "Fecha_Creacion" text not null default '';
 create table if not exists "Proveedores" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -184,6 +266,16 @@ create table if not exists "Proveedores" (
   "Notas" text not null default '',
   primary key (tenant_id, "ID_Proveedor")
 );
+alter table "Proveedores" add column if not exists "Nombre" text not null default '';
+alter table "Proveedores" add column if not exists "Documento" text not null default '';
+alter table "Proveedores" add column if not exists "Contacto" text not null default '';
+alter table "Proveedores" add column if not exists "Telefono" text not null default '';
+alter table "Proveedores" add column if not exists "Email" text not null default '';
+alter table "Proveedores" add column if not exists "Direccion" text not null default '';
+alter table "Proveedores" add column if not exists "Dias_Visita" text not null default '';
+alter table "Proveedores" add column if not exists "Ultima_Visita" text not null default '';
+alter table "Proveedores" add column if not exists "Proxima_Visita" text not null default '';
+alter table "Proveedores" add column if not exists "Notas" text not null default '';
 create table if not exists "Visitas_Proveedor" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -195,6 +287,11 @@ create table if not exists "Visitas_Proveedor" (
   "Usuario" text not null default '',
   primary key (tenant_id, "ID_Visita")
 );
+alter table "Visitas_Proveedor" add column if not exists "ID_Proveedor" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Fecha" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Tipo" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Notas" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Usuario" text not null default '';
 create table if not exists "Compras" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -207,6 +304,12 @@ create table if not exists "Compras" (
   "Nota" text not null default '',
   primary key (tenant_id, "ID_Compra")
 );
+alter table "Compras" add column if not exists "Fecha" text not null default '';
+alter table "Compras" add column if not exists "ID_Proveedor" text not null default '';
+alter table "Compras" add column if not exists "Total" numeric not null default 0;
+alter table "Compras" add column if not exists "Estado" text not null default '';
+alter table "Compras" add column if not exists "Usuario" text not null default '';
+alter table "Compras" add column if not exists "Nota" text not null default '';
 create table if not exists "Detalle_Compra" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -218,6 +321,11 @@ create table if not exists "Detalle_Compra" (
   "Subtotal" numeric not null default 0,
   primary key (tenant_id, "ID_DetCompra")
 );
+alter table "Detalle_Compra" add column if not exists "ID_Compra" text not null default '';
+alter table "Detalle_Compra" add column if not exists "ID_Producto" text not null default '';
+alter table "Detalle_Compra" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Detalle_Compra" add column if not exists "Costo_Unitario" numeric not null default 0;
+alter table "Detalle_Compra" add column if not exists "Subtotal" numeric not null default 0;
 create table if not exists "Deliverys" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -235,6 +343,17 @@ create table if not exists "Deliverys" (
   "Fecha_Ubicacion" text not null default '',
   primary key (tenant_id, "ID_Delivery")
 );
+alter table "Deliverys" add column if not exists "Nombre" text not null default '';
+alter table "Deliverys" add column if not exists "Telefono" text not null default '';
+alter table "Deliverys" add column if not exists "Email" text not null default '';
+alter table "Deliverys" add column if not exists "Vehiculo" text not null default '';
+alter table "Deliverys" add column if not exists "Patente" text not null default '';
+alter table "Deliverys" add column if not exists "Estado" text not null default '';
+alter table "Deliverys" add column if not exists "Tarifa_Base" numeric not null default 0;
+alter table "Deliverys" add column if not exists "Tarifa_Km" numeric not null default 0;
+alter table "Deliverys" add column if not exists "Activo" boolean not null default true;
+alter table "Deliverys" add column if not exists "Ultima_Ubicacion" text not null default '';
+alter table "Deliverys" add column if not exists "Fecha_Ubicacion" text not null default '';
 create table if not exists "Ventas" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -256,6 +375,21 @@ create table if not exists "Ventas" (
   "Nota_Cocina" text not null default '',
   primary key (tenant_id, "ID_Venta")
 );
+alter table "Ventas" add column if not exists "Fecha_Hora" text not null default '';
+alter table "Ventas" add column if not exists "ID_Cliente" text not null default '';
+alter table "Ventas" add column if not exists "Tipo_Entrega" text not null default '';
+alter table "Ventas" add column if not exists "Subtotal" numeric not null default 0;
+alter table "Ventas" add column if not exists "Descuento" numeric not null default 0;
+alter table "Ventas" add column if not exists "Costo_Delivery" numeric not null default 0;
+alter table "Ventas" add column if not exists "Total" numeric not null default 0;
+alter table "Ventas" add column if not exists "Metodo_Pago" text not null default '';
+alter table "Ventas" add column if not exists "Estado_Pago" text not null default '';
+alter table "Ventas" add column if not exists "Estado" text not null default '';
+alter table "Ventas" add column if not exists "Tipo_Documento" text not null default '';
+alter table "Ventas" add column if not exists "Dia_Semana" text not null default '';
+alter table "Ventas" add column if not exists "Usuario" text not null default '';
+alter table "Ventas" add column if not exists "Referencia" text not null default '';
+alter table "Ventas" add column if not exists "Nota_Cocina" text not null default '';
 create table if not exists "Detalle_Venta" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -274,6 +408,18 @@ create table if not exists "Detalle_Venta" (
   "Va_A_Cocina" boolean not null default true,
   primary key (tenant_id, "ID_Detalle")
 );
+alter table "Detalle_Venta" add column if not exists "ID_Venta" text not null default '';
+alter table "Detalle_Venta" add column if not exists "ID_Producto" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Nombre_Producto" text not null default '';
+alter table "Detalle_Venta" add column if not exists "ID_Categoria" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Precio_Unitario" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Costo_Unitario" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Descuento" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Subtotal" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Fecha" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Nota" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Va_A_Cocina" boolean not null default true;
 create table if not exists "Servicios_Delivery" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -296,6 +442,22 @@ create table if not exists "Servicios_Delivery" (
   "Usuario_Asigna" text not null default '',
   primary key (tenant_id, "ID_Servicio")
 );
+alter table "Servicios_Delivery" add column if not exists "ID_Venta" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "ID_Delivery" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Nombre_Delivery" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha_Asignacion" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha_Aceptado" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha_Finalizado" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Direccion_Entrega" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Destino_LatLong" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Origen_LatLong" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Distancia_Km" numeric not null default 0;
+alter table "Servicios_Delivery" add column if not exists "Tiempo_Min" numeric not null default 0;
+alter table "Servicios_Delivery" add column if not exists "Monto_Delivery" numeric not null default 0;
+alter table "Servicios_Delivery" add column if not exists "Estado" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Notas" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Usuario_Asigna" text not null default '';
 create table if not exists "Ubicaciones_Delivery" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -306,6 +468,10 @@ create table if not exists "Ubicaciones_Delivery" (
   "Fecha_Hora" text not null default '',
   primary key (tenant_id, "ID_Ubic")
 );
+alter table "Ubicaciones_Delivery" add column if not exists "ID_Servicio" text not null default '';
+alter table "Ubicaciones_Delivery" add column if not exists "ID_Delivery" text not null default '';
+alter table "Ubicaciones_Delivery" add column if not exists "LatLong" text not null default '';
+alter table "Ubicaciones_Delivery" add column if not exists "Fecha_Hora" text not null default '';
 create table if not exists "Documentos" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -321,6 +487,15 @@ create table if not exists "Documentos" (
   "PDF_URL" text not null default '',
   primary key (tenant_id, "ID_Documento")
 );
+alter table "Documentos" add column if not exists "ID_Venta" text not null default '';
+alter table "Documentos" add column if not exists "Tipo" text not null default '';
+alter table "Documentos" add column if not exists "Folio" text not null default '';
+alter table "Documentos" add column if not exists "Fecha" text not null default '';
+alter table "Documentos" add column if not exists "Neto" numeric not null default 0;
+alter table "Documentos" add column if not exists "Impuesto" numeric not null default 0;
+alter table "Documentos" add column if not exists "Total" numeric not null default 0;
+alter table "Documentos" add column if not exists "Formato" text not null default '';
+alter table "Documentos" add column if not exists "PDF_URL" text not null default '';
 create table if not exists "Categorias_Conocimiento" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -329,6 +504,8 @@ create table if not exists "Categorias_Conocimiento" (
   "Imagen" text not null default '',
   primary key (tenant_id, "ID_CatCon")
 );
+alter table "Categorias_Conocimiento" add column if not exists "Nombre" text not null default '';
+alter table "Categorias_Conocimiento" add column if not exists "Imagen" text not null default '';
 create table if not exists "Conocimiento" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -342,6 +519,13 @@ create table if not exists "Conocimiento" (
   "Usuario" text not null default '',
   primary key (tenant_id, "ID_Conocimiento")
 );
+alter table "Conocimiento" add column if not exists "Titulo" text not null default '';
+alter table "Conocimiento" add column if not exists "ID_CatCon" text not null default '';
+alter table "Conocimiento" add column if not exists "Archivo_PDF" text not null default '';
+alter table "Conocimiento" add column if not exists "Descripcion" text not null default '';
+alter table "Conocimiento" add column if not exists "Etiquetas" text not null default '';
+alter table "Conocimiento" add column if not exists "Fecha" text not null default '';
+alter table "Conocimiento" add column if not exists "Usuario" text not null default '';
 create table if not exists "Alertas" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -354,6 +538,12 @@ create table if not exists "Alertas" (
   "Leida" boolean not null default false,
   primary key (tenant_id, "ID_Alerta")
 );
+alter table "Alertas" add column if not exists "Fecha" text not null default '';
+alter table "Alertas" add column if not exists "Tipo" text not null default '';
+alter table "Alertas" add column if not exists "Referencia" text not null default '';
+alter table "Alertas" add column if not exists "Mensaje" text not null default '';
+alter table "Alertas" add column if not exists "Para_Rol" text not null default '';
+alter table "Alertas" add column if not exists "Leida" boolean not null default false;
 create table if not exists "Auditoria" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -366,6 +556,12 @@ create table if not exists "Auditoria" (
   "Detalle" text not null default '',
   primary key (tenant_id, "ID_Log")
 );
+alter table "Auditoria" add column if not exists "Fecha" text not null default '';
+alter table "Auditoria" add column if not exists "Usuario" text not null default '';
+alter table "Auditoria" add column if not exists "Modulo" text not null default '';
+alter table "Auditoria" add column if not exists "Accion" text not null default '';
+alter table "Auditoria" add column if not exists "Registro" text not null default '';
+alter table "Auditoria" add column if not exists "Detalle" text not null default '';
 
 create unique index if not exists usuarios_email_unico on "Usuarios" (lower("Email"));
 create index if not exists ventas_fecha on "Ventas" (tenant_id, "Fecha_Hora");
@@ -390,6 +586,7 @@ alter table "Configuracion" enable row level security;
 alter table "Categorias" enable row level security;
 alter table "Unidades" enable row level security;
 alter table "Productos" enable row level security;
+alter table "Receta_Ingredientes" enable row level security;
 alter table "Movimientos_Inventario" enable row level security;
 alter table "Clientes" enable row level security;
 alter table "Proveedores" enable row level security;
@@ -891,7 +1088,7 @@ create or replace function cfg_tabla(p_t text) returns jsonb language sql immuta
 
 create or replace function modulo_solo_lectura(p_t text) returns text language sql immutable as $$
   select (jsonb_build_object('Ventas', 'Ventas', 'Detalle_Venta', 'Ventas', 'Documentos', 'Ventas', 'Compras', 'Proveedores',
-    'Detalle_Compra', 'Proveedores', 'Movimientos_Inventario', 'Inventario', 'Servicios_Delivery', 'Delivery',
+    'Detalle_Compra', 'Proveedores', 'Movimientos_Inventario', 'Inventario', 'Receta_Ingredientes', 'Inventario', 'Servicios_Delivery', 'Delivery',
     'Ubicaciones_Delivery', 'Delivery', 'Auditoria', 'Configuracion')) ->> p_t $$;
 
 create or replace function tabla_funcion(p_t text) returns text language sql immutable as $$
@@ -932,6 +1129,7 @@ end $$;
 create or replace function stock_alerta(c ctx_t, p jsonb, p_nuevo numeric) returns void language plpgsql as $$
 declare mn numeric := coalesce((p ->> 'Stock_Minimo')::numeric, 0); act text := cfg_get(c.tid, 'ALERTA_STOCK_ACTIVA');
 begin
+  if coalesce((p ->> 'Es_Preparado')::boolean, false) then return; end if;
   if act is not null and not bj(act) then return; end if;
   if p_nuevo > mn then return; end if;
   if exists (select 1 from "Alertas" where tenant_id = c.tid and "Tipo" = 'Stock minimo' and "Referencia" = p ->> 'ID_Producto' and not "Leida") then return; end if;
@@ -961,7 +1159,7 @@ begin
   if tiene_col(t, 'Fecha_Creacion') and coalesce(datos ->> 'Fecha_Creacion', '') = '' then datos := datos || jsonb_build_object('Fecha_Creacion', ahora); end if;
   if tiene_col(t, 'Fecha') and coalesce(datos ->> 'Fecha', '') = '' and t <> 'Detalle_Compra' then datos := datos || jsonb_build_object('Fecha', ahora); end if;
   if t = 'Productos' then
-    stock0 := nj(d -> 'datos', 'Stock_Actual');
+    stock0 := case when coalesce((datos ->> 'Es_Preparado')::boolean, false) then 0 else nj(d -> 'datos', 'Stock_Actual') end;
     if coalesce(datos ->> 'Nombre', '') = '' then perform fail_('El producto necesita un nombre'); end if;
     datos := datos || jsonb_build_object('Stock_Actual', stock0);
     if coalesce(datos ->> 'Codigo_Barras', '') <> '' then
@@ -978,7 +1176,7 @@ begin
 end $$;
 
 create or replace function a_actualizar(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
-declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text; datos jsonb;
+declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text; datos jsonb; usos text; cur jsonb;
 begin
   if cfg is null then perform fail_('No se puede editar ' || t); end if;
   perform need_(c, cfg ->> 'module', 'Editar');
@@ -986,21 +1184,39 @@ begin
   k := cfg ->> 'key';
   if get_row(c.tid, t, k, tj(d, 'id')) is null then perform fail_('Registro no encontrado'); end if;
   datos := limpiar_datos(t, coalesce(d -> 'datos', '{}'::jsonb)) - k;
-  if t = 'Productos' then datos := datos - 'Stock_Actual'; end if;
+  if t = 'Productos' then
+    datos := datos - 'Stock_Actual';
+    if datos ? 'Es_Preparado' then
+      cur := get_row(c.tid, t, k, d ->> 'id');
+      if (datos ->> 'Es_Preparado')::boolean and not coalesce((cur ->> 'Es_Preparado')::boolean, false) then
+        usos := usado_como_ingrediente(c, d ->> 'id');
+        if usos <> '' then perform fail_('No se puede marcar como preparado: es ingrediente de ' || usos); end if;
+      end if;
+      if not (datos ->> 'Es_Preparado')::boolean and coalesce((cur ->> 'Es_Preparado')::boolean, false) then
+        delete from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = d ->> 'id';
+      end if;
+    end if;
+  end if;
   perform upd_row(c.tid, t, k, d ->> 'id', datos);
   perform audit_(c, cfg ->> 'module', 'Editar', d ->> 'id', t);
   return to_jsonb(true);
 end $$;
 
 create or replace function a_eliminar(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
-declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text;
+declare t text := tj(d, 'tabla'); cfg jsonb := cfg_tabla(t); k text; usos text; cur jsonb;
 begin
   if cfg is null then perform fail_('No se puede eliminar en ' || t); end if;
   perform need_(c, cfg ->> 'module', 'Eliminar');
   if t in ('Roles', 'Permisos', 'Permisos_Usuario') and not is_master(c) then perform fail_('Solo el Master puede modificar roles y permisos', 'PERM'); end if;
   if t = 'Roles' and tj(d, 'id') = 'R01' then perform fail_('No se puede eliminar el rol Master'); end if;
   k := cfg ->> 'key';
-  if get_row(c.tid, t, k, tj(d, 'id')) is null then perform fail_('Registro no encontrado'); end if;
+  cur := get_row(c.tid, t, k, tj(d, 'id'));
+  if cur is null then perform fail_('Registro no encontrado'); end if;
+  if t = 'Productos' then
+    usos := usado_como_ingrediente(c, d ->> 'id');
+    if usos <> '' then perform fail_('No se puede eliminar "' || (cur ->> 'Nombre') || '": es ingrediente de ' || usos || '. Quítalo primero de esas recetas.'); end if;
+    delete from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = d ->> 'id';
+  end if;
   perform del_row(c.tid, t, k, d ->> 'id');
   perform audit_(c, cfg ->> 'module', 'Eliminar', d ->> 'id', t);
   return to_jsonb(true);
@@ -1013,6 +1229,9 @@ begin
   perform need_(c, 'Inventario', 'Editar');
   p := get_row(c.tid, 'Productos', 'ID_Producto', tj(d, 'ID_Producto'));
   if p is null then perform fail_('Producto no encontrado'); end if;
+  if coalesce((p ->> 'Es_Preparado')::boolean, false) then
+    perform fail_('"' || (p ->> 'Nombre') || '" es un producto preparado: su stock depende de sus ingredientes. Ajusta el stock de los ingredientes.');
+  end if;
   antes := (p ->> 'Stock_Actual')::numeric;
   if tipo = 'Ajuste' then
     despues := nj(d, 'nuevoStock');
@@ -1030,6 +1249,45 @@ begin
   perform stock_alerta(c, p, despues);
   perform audit_(c, 'Inventario', 'Editar', p ->> 'ID_Producto', tipo || ': ' || trim_scale(antes)::text || ' → ' || trim_scale(despues)::text);
   return jsonb_build_object('ID_Producto', p ->> 'ID_Producto', 'Stock_Actual', despues);
+end $$;
+
+-- ---------- Productos preparados (recetas) ----------
+-- Un producto «preparado» (ej. hamburguesa) no lleva stock propio: al venderlo se descuentan sus ingredientes.
+create or replace function usado_como_ingrediente(c ctx_t, p_id text) returns text language sql stable as $$
+  select coalesce(string_agg(distinct coalesce(pr."Nombre", ri."ID_Producto"), ', '), '')
+  from "Receta_Ingredientes" ri
+  left join "Productos" pr on pr.tenant_id = ri.tenant_id and pr."ID_Producto" = ri."ID_Producto"
+  where ri.tenant_id = c.tid and ri."ID_Ingrediente" = p_id $$;
+
+-- Guarda (reemplaza) la receta de un producto preparado y deja su costo calculado en Precio_Compra.
+create or replace function a_guardar_receta(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
+declare p jsonb; ing jsonb; x jsonb; vistos text[] := '{}'; filas jsonb := '[]'::jsonb; costo numeric := 0; cant numeric; n integer;
+begin
+  perform need_(c, 'Inventario', 'Editar');
+  p := get_row(c.tid, 'Productos', 'ID_Producto', tj(d, 'ID_Producto'));
+  if p is null then perform fail_('Producto no encontrado'); end if;
+  if not coalesce((p ->> 'Es_Preparado')::boolean, false) then perform fail_('Primero marca el producto como «preparado» (casilla en la ficha del producto).'); end if;
+  for x in select * from jsonb_array_elements(coalesce(d -> 'ingredientes', '[]'::jsonb)) loop
+    ing := get_row(c.tid, 'Productos', 'ID_Producto', tj(x, 'ID_Ingrediente'));
+    if ing is null then perform fail_('Ingrediente no encontrado: ' || tj(x, 'ID_Ingrediente')); end if;
+    if ing ->> 'ID_Producto' = p ->> 'ID_Producto' then perform fail_('Un producto no puede ser ingrediente de sí mismo'); end if;
+    if coalesce((ing ->> 'Es_Preparado')::boolean, false) then perform fail_('"' || (ing ->> 'Nombre') || '" también es un producto preparado. Los ingredientes deben ser productos de inventario.'); end if;
+    if (ing ->> 'ID_Producto') = any(vistos) then perform fail_('"' || (ing ->> 'Nombre') || '" está repetido en la receta'); end if;
+    vistos := vistos || (ing ->> 'ID_Producto');
+    cant := nj(x, 'Cantidad');
+    if not (cant > 0) then perform fail_('Cantidad inválida en "' || (ing ->> 'Nombre') || '"'); end if;
+    costo := costo + cant * (ing ->> 'Precio_Compra')::numeric;
+    filas := filas || jsonb_build_object('ID_Receta', nuevo_id('RI'), 'ID_Producto', p ->> 'ID_Producto', 'ID_Ingrediente', ing ->> 'ID_Producto', 'Cantidad', cant,
+      'Cantidad_Receta', case when nj(x, 'Cantidad_Receta') > 0 then nj(x, 'Cantidad_Receta') else cant end, 'Unidad_Receta', left(tj(x, 'Unidad_Receta'), 20));
+  end loop;
+  n := jsonb_array_length(filas);
+  if n = 0 then perform fail_('Agrega al menos un ingrediente a la receta'); end if;
+  costo := r2(costo);
+  delete from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = p ->> 'ID_Producto';
+  for x in select * from jsonb_array_elements(filas) loop perform ins_row(c.tid, 'Receta_Ingredientes', x); end loop;
+  update "Productos" set "Precio_Compra" = costo where tenant_id = c.tid and "ID_Producto" = p ->> 'ID_Producto';
+  perform audit_(c, 'Inventario', 'Editar', p ->> 'ID_Producto', 'Receta: ' || n::text || ' ingredientes, costo ' || trim_scale(costo)::text);
+  return jsonb_build_object('ID_Producto', p ->> 'ID_Producto', 'Costo', costo, 'ingredientes', n);
 end $$;
 
 create or replace function a_marcar_alertas(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
@@ -1083,6 +1341,7 @@ begin
   for it in select * from jsonb_array_elements(items) loop
     p := get_row(c.tid, 'Productos', 'ID_Producto', tj(it, 'ID_Producto'));
     if p is null then perform fail_('Producto no encontrado: ' || tj(it, 'ID_Producto')); end if;
+    if coalesce((p ->> 'Es_Preparado')::boolean, false) then perform fail_('"' || (p ->> 'Nombre') || '" es un producto preparado: no se compra, se prepara con sus ingredientes'); end if;
     cant := nj(it, 'Cantidad'); costo := nj(it, 'Costo_Unitario');
     if not (cant > 0) then perform fail_('Cantidad inválida para ' || (p ->> 'Nombre')); end if;
     if costo < 0 then perform fail_('Costo inválido para ' || (p ->> 'Nombre')); end if;
@@ -1170,6 +1429,7 @@ declare
   p jsonb; stock numeric; precio numeric; sub numeric; subtotal numeric := 0; descuento numeric; costo_del numeric := 0; total numeric;
   tipo_doc text; venta jsonb; nuevo numeric; cfg jsonb := cfg_all(c.tid); dl jsonb; cli jsonb; servicio jsonb; doc jsonb; imp numeric; neto numeric;
   dd jsonb := coalesce(d -> 'delivery', '{}'::jsonb); det jsonb := '[]'::jsonb;
+  consumo jsonb := '{}'::jsonb; usos jsonb := '{}'::jsonb; costo numeric; need numeric; rec record; k text; v text;
 begin
   perform need_(c, 'Ventas', 'Crear');
   if jsonb_array_length(items) = 0 then perform fail_('La venta no tiene productos'); end if;
@@ -1194,12 +1454,38 @@ begin
     p := get_row(c.tid, 'Productos', 'ID_Producto', pid);
     if p is null then perform fail_('Producto no existe: ' || pid); end if;
     if not (p ->> 'Activo')::boolean then perform fail_('El producto "' || (p ->> 'Nombre') || '" está desactivado'); end if;
-    q := (cant ->> pid)::numeric; stock := (p ->> 'Stock_Actual')::numeric;
-    if q > stock and not negativo then perform fail_('Stock insuficiente de "' || (p ->> 'Nombre') || '" (disponible: ' || trim_scale(stock)::text || ')'); end if;
+    q := (cant ->> pid)::numeric;
+    costo := (p ->> 'Precio_Compra')::numeric;
+    if coalesce((p ->> 'Es_Preparado')::boolean, false) then
+      if not exists (select 1 from "Receta_Ingredientes" where tenant_id = c.tid and "ID_Producto" = pid) then
+        perform fail_('"' || (p ->> 'Nombre') || '" no tiene ingredientes. Agrega su receta en Inventario.');
+      end if;
+      costo := 0;
+      for rec in select ri."ID_Ingrediente" as iid, ri."Cantidad" as cant_ing, pr."Precio_Compra" as costo_ing
+          from "Receta_Ingredientes" ri join "Productos" pr on pr.tenant_id = ri.tenant_id and pr."ID_Producto" = ri."ID_Ingrediente"
+          where ri.tenant_id = c.tid and ri."ID_Producto" = pid order by ri._orden loop
+        consumo := consumo || jsonb_build_object(rec.iid, coalesce((consumo ->> rec.iid)::numeric, 0) + q * rec.cant_ing);
+        usos := usos || jsonb_build_object(rec.iid, coalesce((usos ->> rec.iid) || ', ', '') || (p ->> 'Nombre') || ' ×' || trim_scale(q)::text);
+        costo := costo + rec.cant_ing * rec.costo_ing;
+      end loop;
+      costo := r2(costo);
+    else
+      consumo := consumo || jsonb_build_object(pid, coalesce((consumo ->> pid)::numeric, 0) + q);
+    end if;
     precio := (p ->> 'Precio_Venta')::numeric; sub := r2(q * precio); subtotal := subtotal + sub;
     det := det || jsonb_build_object('ID_Detalle', nuevo_id('DV'), 'ID_Venta', idv, 'ID_Producto', pid, 'Nombre_Producto', p ->> 'Nombre',
-      'ID_Categoria', p ->> 'ID_Categoria', 'Cantidad', q, 'Precio_Unitario', precio, 'Costo_Unitario', (p ->> 'Precio_Compra')::numeric,
+      'ID_Categoria', p ->> 'ID_Categoria', 'Cantidad', q, 'Precio_Unitario', precio, 'Costo_Unitario', costo,
       'Descuento', 0, 'Subtotal', sub, 'Fecha', fecha, 'Nota', coalesce(notas ->> pid, ''), 'Va_A_Cocina', coalesce((p ->> 'Va_A_Cocina')::boolean, true));
+  end loop;
+  for k, v in select key, value from jsonb_each_text(consumo) loop
+    p := get_row(c.tid, 'Productos', 'ID_Producto', k);
+    need := round(v::numeric, 4); stock := (p ->> 'Stock_Actual')::numeric;
+    if need > stock and not negativo then
+      if usos ? k then
+        perform fail_('Falta "' || (p ->> 'Nombre') || '" para preparar ' || (usos ->> k) || ' (disponible: ' || trim_scale(stock)::text || ', necesario: ' || trim_scale(need)::text || ')');
+      end if;
+      perform fail_('Stock insuficiente de "' || (p ->> 'Nombre') || '" (disponible: ' || trim_scale(stock)::text || ')');
+    end if;
   end loop;
   subtotal := r2(subtotal);
   descuento := r2(greatest(0, nj(d, 'descuento')));
@@ -1217,11 +1503,13 @@ begin
   perform ins_row(c.tid, 'Ventas', venta);
   for it in select * from jsonb_array_elements(det) loop
     perform ins_row(c.tid, 'Detalle_Venta', it);
-    pid := it ->> 'ID_Producto';
-    p := get_row(c.tid, 'Productos', 'ID_Producto', pid);
-    stock := (p ->> 'Stock_Actual')::numeric; nuevo := stock - (it ->> 'Cantidad')::numeric;
-    update "Productos" set "Stock_Actual" = nuevo where tenant_id = c.tid and "ID_Producto" = pid;
-    perform mov_stock(c, pid, 'Salida venta', (it ->> 'Cantidad')::numeric, stock, nuevo, idv, '', ahora);
+  end loop;
+  -- Se descuenta el stock de los productos sueltos y de los ingredientes de los productos preparados
+  for k, v in select key, value from jsonb_each_text(consumo) loop
+    p := get_row(c.tid, 'Productos', 'ID_Producto', k);
+    need := round(v::numeric, 4); stock := (p ->> 'Stock_Actual')::numeric; nuevo := round(stock - need, 4);
+    update "Productos" set "Stock_Actual" = nuevo where tenant_id = c.tid and "ID_Producto" = k;
+    perform mov_stock(c, k, 'Salida venta', need, stock, nuevo, idv, case when usos ? k then 'Ingrediente de ' || (usos ->> k) else '' end, ahora);
     perform stock_alerta(c, p, nuevo);
   end loop;
   if entrega = 'Delivery' then
@@ -1275,18 +1563,25 @@ begin
 end $$;
 
 create or replace function a_anular_venta(c ctx_t, d jsonb) returns jsonb language plpgsql as $$
-declare v jsonb; r record; p jsonb; antes numeric; despues numeric; fh text := ahora_txt(c.tz);
+declare v jsonb; r record; p jsonb; antes numeric; despues numeric; fh text := ahora_txt(c.tz); devolver jsonb;
 begin
   perform need_(c, 'Ventas', 'Eliminar');
   v := get_row(c.tid, 'Ventas', 'ID_Venta', tj(d, 'ID_Venta'));
   if v is null then perform fail_('Venta no encontrada'); end if;
   if v ->> 'Estado' = 'Anulada' then perform fail_('La venta ya está anulada'); end if;
-  for r in select * from "Detalle_Venta" where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta' order by _orden loop
-    p := get_row(c.tid, 'Productos', 'ID_Producto', r."ID_Producto");
-    if p is null then continue; end if;
-    antes := (p ->> 'Stock_Actual')::numeric; despues := antes + r."Cantidad";
-    update "Productos" set "Stock_Actual" = despues where tenant_id = c.tid and "ID_Producto" = r."ID_Producto";
-    perform mov_stock(c, r."ID_Producto", 'Anulacion venta', r."Cantidad", antes, despues, d ->> 'ID_Venta', tj(d, 'motivo'), fh);
+  -- Se devuelve exactamente lo que se descontó al vender (productos sueltos e ingredientes de preparados)
+  select jsonb_agg(jsonb_build_object('id', "ID_Producto", 'cant', "Cantidad") order by _orden) into devolver
+  from "Movimientos_Inventario" where tenant_id = c.tid and "Referencia" = d ->> 'ID_Venta' and "Tipo" = 'Salida venta';
+  if devolver is null then
+    select jsonb_agg(jsonb_build_object('id', "ID_Producto", 'cant', "Cantidad") order by _orden) into devolver
+    from "Detalle_Venta" where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta';
+  end if;
+  for r in select e ->> 'id' as pid, (e ->> 'cant')::numeric as cant from jsonb_array_elements(coalesce(devolver, '[]'::jsonb)) e loop
+    p := get_row(c.tid, 'Productos', 'ID_Producto', r.pid);
+    if p is null or coalesce((p ->> 'Es_Preparado')::boolean, false) then continue; end if;
+    antes := (p ->> 'Stock_Actual')::numeric; despues := round(antes + r.cant, 4);
+    update "Productos" set "Stock_Actual" = despues where tenant_id = c.tid and "ID_Producto" = r.pid;
+    perform mov_stock(c, r.pid, 'Anulacion venta', r.cant, antes, despues, d ->> 'ID_Venta', tj(d, 'motivo'), fh);
   end loop;
   update "Ventas" set "Estado" = 'Anulada' where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta';
   update "Servicios_Delivery" set "Estado" = 'Cancelado' where tenant_id = c.tid and "ID_Venta" = d ->> 'ID_Venta' and "Estado" <> 'Finalizado';
@@ -1482,7 +1777,7 @@ begin
     select "Nombre_Delivery", count(*) k, sum("Monto_Delivery") m, sum("Distancia_Km") km from "Servicios_Delivery"
     where tenant_id = c.tid and "Estado" = 'Finalizado' and left("Fecha", 10) between desde and hasta group by "Nombre_Delivery") t;
   select coalesce(jsonb_agg(jsonb_build_object('nombre', "Nombre", 'stock', "Stock_Actual", 'minimo', "Stock_Minimo") order by _orden), '[]'::jsonb) into bajo
-  from "Productos" where tenant_id = c.tid and "Activo" and "Stock_Actual" <= "Stock_Minimo";
+  from "Productos" where tenant_id = c.tid and "Activo" and not "Es_Preparado" and "Stock_Actual" <= "Stock_Minimo";
   return jsonb_build_object('ventas', n, 'total', r2(tot), 'ticketPromedio', case when n > 0 then r2(tot / n) else 0 end, 'margen', r2(margen),
     'topProductos', top, 'porDia', pdia, 'porHora', phora, 'porCategoria', pcat, 'delivery', del, 'bajoStock', bajo);
 end $$;
@@ -1647,7 +1942,7 @@ begin
     delete from sesiones where token_hash = hash_token(token);
     return jsonb_build_object('ok', true, 'data', true);
   end if;
-  if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','crearVenta','anularVenta','pagarVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
+  if not (accion = any(array['me','cambiarPassword','listar','crear','actualizar','eliminar','ajustarStock','guardarReceta','crearVenta','anularVenta','pagarVenta','listarVentas','detalleVenta','misServicios','servicioEstado','historialDelivery','marcarAlertas','kpi','subirArchivo','guardarConfig','usuariosCrear','usuariosActualizar','usuariosPassword','permisosGuardar','exportar','crearCompra','recibirCompra','anularCompra','listarCompras','ubicacion','mapaVivo','suscripcion'])) then
     perform fail_('Acción desconocida: ' || accion);
   end if;
   -- Un repartidor SOLO puede operar sus propios pedidos: nada de crear/editar/borrar otras cosas, aunque tenga permisos marcados
@@ -1660,7 +1955,7 @@ begin
   if f is not null then perform needfeat_(c, f); end if;
   if accion in ('listar', 'crear', 'actualizar', 'eliminar') and tabla_funcion(tj(d, 'tabla')) is not null then perform needfeat_(c, tabla_funcion(d ->> 'tabla')); end if;
   if accion = 'crearVenta' and tj(d, 'tipoEntrega') = 'Delivery' then perform needfeat_(c, 'delivery'); end if;
-  if accion in ('crear', 'actualizar', 'eliminar', 'ajustarStock', 'crearVenta', 'anularVenta', 'pagarVenta', 'servicioEstado', 'crearCompra', 'recibirCompra', 'anularCompra',
+  if accion in ('crear', 'actualizar', 'eliminar', 'ajustarStock', 'guardarReceta', 'crearVenta', 'anularVenta', 'pagarVenta', 'servicioEstado', 'crearCompra', 'recibirCompra', 'anularCompra',
                 'guardarConfig', 'usuariosCrear', 'usuariosActualizar', 'usuariosPassword', 'permisosGuardar', 'marcarAlertas') then
     perform pg_advisory_xact_lock(hashtextextended(c.tid::text, 0));
   end if;
@@ -1672,6 +1967,7 @@ begin
     when 'actualizar' then a_actualizar(c, d)
     when 'eliminar' then a_eliminar(c, d)
     when 'ajustarStock' then a_ajustar_stock(c, d)
+    when 'guardarReceta' then a_guardar_receta(c, d)
     when 'crearVenta' then a_crear_venta(c, d)
     when 'anularVenta' then a_anular_venta(c, d)
     when 'pagarVenta' then a_pagar_venta(c, d)

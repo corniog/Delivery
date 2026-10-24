@@ -3,6 +3,7 @@ import { call, listar } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { Modal, Icon, Scanner, useToast, useFmt } from '../ui.jsx';
 import { Comprobantes, modoImpresion } from '../Comanda.jsx';
+import { esPreparado, agrupar, maxVendible } from '../recetas.js';
 
 // Si el pago quedó pendiente aún no hay comprobante: solo sale la comanda a cocina.
 const autoVenta = (venta, m) => (venta.venta.Estado_Pago !== 'Pagado' ? (m === 'ambos' ? 'comanda' : m === 'venta' ? 'nada' : m) : m);
@@ -13,6 +14,7 @@ export default function Sell() {
   const toast = useToast();
   const [cats, setCats] = useState([]);
   const [prods, setProds] = useState([]);
+  const [recetas, setRecetas] = useState({});
   const [cat, setCat] = useState(null); // null = vista de categorías
   const [cart, setCart] = useState({}); // id -> cantidad
   const [q, setQ] = useState('');
@@ -23,7 +25,8 @@ export default function Sell() {
 
   const load = async () => {
     try {
-      const [c, p] = await Promise.all([listar('Categorias'), listar('Productos')]);
+      const [c, p, rc] = await Promise.all([listar('Categorias'), listar('Productos'), listar('Receta_Ingredientes').catch(() => [])]);
+      setRecetas(agrupar(rc));
       setCats(c.filter((x) => String(x.Activo).toUpperCase() !== 'FALSE').sort((a, b) => Number(a.Orden || 0) - Number(b.Orden || 0)));
       setProds(p.filter((x) => String(x.Activo).toUpperCase() !== 'FALSE'));
     } catch (e) { setErr(e.message); }
@@ -35,7 +38,8 @@ export default function Sell() {
   const setQty = (id, n) => {
     const p = byId[id];
     let v = Math.max(0, Number(n) || 0);
-    if (!negative && v > Number(p.Stock_Actual)) { v = Number(p.Stock_Actual); toast(`Solo hay ${v} de ${p.Nombre}`, true); }
+    const max = maxVendible(p, byId, recetas, cart, negative);
+    if (v > max) { v = max; toast(esPreparado(p) ? `Solo alcanza para ${v} ${p.Nombre} con los ingredientes disponibles` : `Solo hay ${v} de ${p.Nombre}`, true); }
     setCart((c) => { const x = { ...c }; if (v > 0) x[id] = v; else delete x[id]; return x; });
   };
   const items = Object.keys(cart).map((id) => ({ ...byId[id], qty: cart[id] })).filter((x) => x.ID_Producto);
@@ -59,15 +63,17 @@ export default function Sell() {
 
   const Row = ({ p }) => {
     const n = cart[p.ID_Producto] || 0;
-    const out = Number(p.Stock_Actual) <= 0 && !negative;
+    const prep = esPreparado(p);
+    const disp = maxVendible(p, byId, recetas, {}, negative);
+    const out = !negative && disp <= 0;
     return (
       <div className={'prow' + (n ? ' sel' : '')}>
         {p.Imagen ? <img className="thumb" src={p.Imagen} alt="" /> : <div className="thumb" />}
         <div className="grow">
           <b>{p.Nombre}</b>
-          <div className="muted small">{money(p.Precio_Venta)} / {p.Unidad_Medida || 'un'} · stock {Number(p.Stock_Actual)}</div>
+          <div className="muted small">{money(p.Precio_Venta)}{prep ? ` · se prepara${negative ? '' : ` · alcanza para ${disp}`}` : ` / ${p.Unidad_Medida || 'un'} · stock ${Number(p.Stock_Actual)}`}</div>
         </div>
-        {out ? <span className="badge bad">Sin stock</span> : (
+        {out ? <span className="badge bad">{prep ? 'Faltan ingredientes' : 'Sin stock'}</span> : (
           <div className="stepper">
             <button aria-label="Menos" onClick={() => setQty(p.ID_Producto, n - 1)}>−</button>
             <input inputMode="decimal" value={n || ''} placeholder="0" onChange={(e) => setQty(p.ID_Producto, e.target.value)} />

@@ -62,6 +62,7 @@ const ACTIONS = {
   actualizar: actualizar_,
   eliminar: eliminar_,
   ajustarStock: ajustarStock_,
+  guardarReceta: guardarReceta_,
   crearVenta: crearVenta_,
   anularVenta: anularVenta_,
   pagarVenta: pagarVenta_,
@@ -106,7 +107,7 @@ const TABLES = {
 // Tablas de solo lectura (se escriben con acciones propias)
 const READ_ONLY = {
   Ventas: 'Ventas', Detalle_Venta: 'Ventas', Documentos: 'Ventas', Compras: 'Proveedores', Detalle_Compra: 'Proveedores',
-  Movimientos_Inventario: 'Inventario', Servicios_Delivery: 'Delivery',
+  Movimientos_Inventario: 'Inventario', Receta_Ingredientes: 'Inventario', Servicios_Delivery: 'Delivery',
   Ubicaciones_Delivery: 'Delivery', Auditoria: 'Configuracion', Configuracion: null
 };
 // Columnas que nunca se pueden escribir desde la app
@@ -190,6 +191,7 @@ function pad_(n, w) { let s = String(n); while (s.length < w) s = '0' + s; retur
 function bool_(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
 function num_(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
 function round2_(n) { return Math.round(n * 100) / 100; }
+function round4_(n) { return Math.round(n * 10000) / 10000; }
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
@@ -398,7 +400,7 @@ function crear_(ctx, d) {
   if (headers_(t).indexOf('Fecha') >= 0 && !datos.Fecha && t !== 'Detalle_Compra') datos.Fecha = now;
   let stockInicial = 0;
   if (t === 'Productos') {
-    stockInicial = num_((d.datos || {}).Stock_Actual);
+    stockInicial = bool_(datos.Es_Preparado) ? 0 : num_((d.datos || {}).Stock_Actual);
     if (!datos.Nombre) fail_('El producto necesita un nombre');
     datos.Stock_Actual = stockInicial;
     if (datos.Activo === undefined || datos.Activo === '') datos.Activo = true;
@@ -434,6 +436,13 @@ function actualizar_(ctx, d) {
   if (!cur) fail_('Registro no encontrado');
   const datos = writable_(t, d.datos || {});
   delete datos[cfg.key];
+  if (t === 'Productos' && datos.Es_Preparado !== undefined) {
+    if (bool_(datos.Es_Preparado) && !bool_(cur.Es_Preparado)) {
+      const usos = usadoComoIngrediente_(cur.ID_Producto);
+      if (usos.length) fail_('No se puede marcar como preparado: es ingrediente de ' + usos.join(', '));
+    }
+    if (!bool_(datos.Es_Preparado) && bool_(cur.Es_Preparado)) borrarReceta_(cur.ID_Producto);
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try { update_(t, cur._row, datos); } finally { lock.releaseLock(); }
@@ -451,6 +460,11 @@ function eliminar_(ctx, d) {
   if (t === 'Roles' && (d.id === MASTER_ROLE)) fail_('No se puede eliminar el rol Master');
   const cur = findBy_(t, cfg.key, d.id);
   if (!cur) fail_('Registro no encontrado');
+  if (t === 'Productos') {
+    const usos = usadoComoIngrediente_(cur.ID_Producto);
+    if (usos.length) fail_('No se puede eliminar "' + cur.Nombre + '": es ingrediente de ' + usos.join(', ') + '. Quítalo primero de esas recetas.');
+    borrarReceta_(cur.ID_Producto);
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try { sheet_(t).deleteRow(cur._row); } finally { lock.releaseLock(); }
@@ -467,6 +481,7 @@ function ajustarStock_(ctx, d) {
   try {
     const p = findBy_('Productos', 'ID_Producto', d.ID_Producto);
     if (!p) fail_('Producto no encontrado');
+    if (bool_(p.Es_Preparado)) fail_('"' + p.Nombre + '" es un producto preparado: su stock depende de sus ingredientes. Ajusta el stock de los ingredientes.');
     const antes = num_(p.Stock_Actual);
     let despues;
     const tipo = d.tipo;
@@ -494,6 +509,7 @@ function ajustarStock_(ctx, d) {
 }
 
 function stockAlert_(p, nuevoStock) {
+  if (bool_(p.Es_Preparado)) return;
   const c = config_();
   if (c.ALERTA_STOCK_ACTIVA !== undefined && !bool_(c.ALERTA_STOCK_ACTIVA)) return;
   const min = num_(p.Stock_Minimo);
@@ -507,6 +523,77 @@ function stockAlert_(p, nuevoStock) {
     Mensaje: p.Nombre + ' llegó al stock mínimo (quedan ' + nuevoStock + ', mínimo ' + min + ')',
     Para_Rol: 'R01,R02', Leida: false
   });
+}
+
+// ---------- Productos preparados (recetas) ----------
+// Un producto «preparado» (ej. hamburguesa) no lleva stock propio: al venderlo se descuentan sus ingredientes.
+function recetas_(productos) {
+  const out = {};
+  readAll_('Receta_Ingredientes').forEach(function (r) {
+    const ing = productos[r.ID_Ingrediente];
+    if (!ing) return;
+    (out[r.ID_Producto] = out[r.ID_Producto] || []).push({ ing: ing, cant: num_(r.Cantidad) });
+  });
+  return out;
+}
+
+// Nombres de los productos preparados que usan este producto como ingrediente.
+function usadoComoIngrediente_(idProducto) {
+  const productos = {};
+  readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
+  const nombres = [];
+  readAll_('Receta_Ingredientes').forEach(function (r) {
+    if (String(r.ID_Ingrediente) !== String(idProducto)) return;
+    const p = productos[r.ID_Producto];
+    const n = p ? p.Nombre : r.ID_Producto;
+    if (nombres.indexOf(n) < 0) nombres.push(n);
+  });
+  return nombres;
+}
+
+function borrarReceta_(idProducto) {
+  const filas = readAll_('Receta_Ingredientes').filter(function (r) { return String(r.ID_Producto) === String(idProducto); });
+  filas.sort(function (a, b) { return b._row - a._row; });
+  filas.forEach(function (r) { sheet_('Receta_Ingredientes').deleteRow(r._row); });
+}
+
+// Guarda (reemplaza) la receta de un producto preparado y deja su costo calculado en Precio_Compra.
+function guardarReceta_(ctx, d) {
+  need_(ctx, 'Inventario', 'Editar');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const p = findBy_('Productos', 'ID_Producto', d.ID_Producto);
+    if (!p) fail_('Producto no encontrado');
+    if (!bool_(p.Es_Preparado)) fail_('Primero marca el producto como «preparado» (casilla en la ficha del producto).');
+    const productos = {};
+    readAll_('Productos').forEach(function (x) { productos[x.ID_Producto] = x; });
+    const vistos = {};
+    const filas = [];
+    let costo = 0;
+    (d.ingredientes || []).forEach(function (x) {
+      const ing = productos[x.ID_Ingrediente];
+      if (!ing) fail_('Ingrediente no encontrado: ' + x.ID_Ingrediente);
+      if (ing.ID_Producto === p.ID_Producto) fail_('Un producto no puede ser ingrediente de sí mismo');
+      if (bool_(ing.Es_Preparado)) fail_('"' + ing.Nombre + '" también es un producto preparado. Los ingredientes deben ser productos de inventario.');
+      if (vistos[ing.ID_Producto]) fail_('"' + ing.Nombre + '" está repetido en la receta');
+      vistos[ing.ID_Producto] = 1;
+      const cant = num_(x.Cantidad);
+      if (!(cant > 0)) fail_('Cantidad inválida en "' + ing.Nombre + '"');
+      costo += cant * num_(ing.Precio_Compra);
+      filas.push({
+        ID_Receta: newId_('RI'), ID_Producto: p.ID_Producto, ID_Ingrediente: ing.ID_Producto, Cantidad: cant,
+        Cantidad_Receta: num_(x.Cantidad_Receta) || cant, Unidad_Receta: String(x.Unidad_Receta || '').slice(0, 20)
+      });
+    });
+    if (!filas.length) fail_('Agrega al menos un ingrediente a la receta');
+    costo = round2_(costo);
+    borrarReceta_(p.ID_Producto);
+    filas.forEach(function (r) { insert_('Receta_Ingredientes', r); });
+    update_('Productos', p._row, { Precio_Compra: costo });
+    audit_(ctx, 'Inventario', 'Editar', p.ID_Producto, 'Receta: ' + filas.length + ' ingredientes, costo ' + costo);
+    return { ID_Producto: p.ID_Producto, Costo: costo, ingredientes: filas.length };
+  } finally { lock.releaseLock(); }
 }
 
 function marcarAlertas_(ctx, d) {
@@ -555,6 +642,7 @@ function crearCompra_(ctx, d) {
     const detalles = itemsIn.map(function (it) {
       const p = productos[it.ID_Producto];
       if (!p) fail_('Producto no encontrado: ' + it.ID_Producto);
+      if (bool_(p.Es_Preparado)) fail_('"' + p.Nombre + '" es un producto preparado: no se compra, se prepara con sus ingredientes');
       const cant = num_(it.Cantidad), costo = num_(it.Costo_Unitario);
       if (!(cant > 0)) fail_('Cantidad inválida para ' + p.Nombre);
       if (costo < 0) fail_('Costo inválido para ' + p.Nombre);
@@ -754,27 +842,53 @@ function crearVenta_(ctx, d) {
     const movs = [];
     const updates = [];
     const ids = Object.keys(merged);
+    const recetas = recetas_(productos);
+    const consumo = {}; // ID del producto de inventario -> cantidad total a descontar
+    const usos = {};    // ID del ingrediente -> a qué preparados se destina (para la nota del movimiento)
     ids.forEach(function (id) {
       const p = productos[id];
       if (!p) fail_('Producto no existe: ' + id);
       if (!bool_(p.Activo)) fail_('El producto "' + p.Nombre + '" está desactivado');
       const qty = merged[id];
-      const stock = num_(p.Stock_Actual);
-      if (qty > stock && !negativo) fail_('Stock insuficiente de "' + p.Nombre + '" (disponible: ' + stock + ')');
+      let costo = num_(p.Precio_Compra);
+      if (bool_(p.Es_Preparado)) {
+        const rec = recetas[id];
+        if (!rec || !rec.length) fail_('"' + p.Nombre + '" no tiene ingredientes. Agrega su receta en Inventario.');
+        costo = 0;
+        rec.forEach(function (x) {
+          const iid = x.ing.ID_Producto;
+          consumo[iid] = (consumo[iid] || 0) + qty * x.cant;
+          (usos[iid] = usos[iid] || []).push(p.Nombre + ' ×' + qty);
+          costo += x.cant * num_(x.ing.Precio_Compra);
+        });
+        costo = round2_(costo);
+      } else {
+        consumo[id] = (consumo[id] || 0) + qty;
+      }
       const precio = num_(p.Precio_Venta);
       const sub = round2_(qty * precio);
       subtotal += sub;
       detalle.push({
         ID_Detalle: newId_('DV'), ID_Venta: idVenta, ID_Producto: id, Nombre_Producto: p.Nombre,
-        ID_Categoria: p.ID_Categoria, Cantidad: qty, Precio_Unitario: precio, Costo_Unitario: num_(p.Precio_Compra),
+        ID_Categoria: p.ID_Categoria, Cantidad: qty, Precio_Unitario: precio, Costo_Unitario: costo,
         Descuento: 0, Subtotal: sub, Fecha: fecha,
         Nota: notas[id] || '', Va_A_Cocina: String(p.Va_A_Cocina).toUpperCase() !== 'FALSE'
       });
-      const nuevo = stock - qty;
+    });
+    Object.keys(consumo).forEach(function (iid) {
+      const p = productos[iid];
+      const need = round4_(consumo[iid]);
+      const stock = num_(p.Stock_Actual);
+      if (need > stock && !negativo) {
+        if (usos[iid]) fail_('Falta "' + p.Nombre + '" para preparar ' + usos[iid].join(', ') + ' (disponible: ' + stock + ', necesario: ' + need + ')');
+        fail_('Stock insuficiente de "' + p.Nombre + '" (disponible: ' + stock + ')');
+      }
+      const nuevo = round4_(stock - need);
       updates.push({ p: p, nuevo: nuevo });
       movs.push({
-        ID_Mov: newId_('M'), Fecha: fh, ID_Producto: id, Tipo: 'Salida venta', Cantidad: qty,
-        Stock_Antes: stock, Stock_Despues: nuevo, Referencia: idVenta, Usuario: ctx.user.Email, Nota: ''
+        ID_Mov: newId_('M'), Fecha: fh, ID_Producto: iid, Tipo: 'Salida venta', Cantidad: need,
+        Stock_Antes: stock, Stock_Despues: nuevo, Referencia: idVenta, Usuario: ctx.user.Email,
+        Nota: usos[iid] ? 'Ingrediente de ' + usos[iid].join(', ') : ''
       });
     });
     subtotal = round2_(subtotal);
@@ -865,15 +979,22 @@ function anularVenta_(ctx, d) {
     const productos = {};
     readAll_('Productos').forEach(function (p) { productos[p.ID_Producto] = p; });
     const fh = fmtDT_(new Date());
-    readAll_('Detalle_Venta').filter(function (r) { return r.ID_Venta === d.ID_Venta; }).forEach(function (r) {
-      const p = productos[r.ID_Producto];
-      if (!p) return;
+    // Se devuelve exactamente lo que se descontó al vender (productos sueltos e ingredientes de preparados).
+    let devolver = readAll_('Movimientos_Inventario').filter(function (m) { return String(m.Referencia) === String(d.ID_Venta) && m.Tipo === 'Salida venta'; })
+      .map(function (m) { return { id: m.ID_Producto, cant: num_(m.Cantidad) }; });
+    if (!devolver.length) {
+      devolver = readAll_('Detalle_Venta').filter(function (r) { return r.ID_Venta === d.ID_Venta; })
+        .map(function (r) { return { id: r.ID_Producto, cant: num_(r.Cantidad) }; });
+    }
+    devolver.forEach(function (r) {
+      const p = productos[r.id];
+      if (!p || bool_(p.Es_Preparado)) return;
       const antes = num_(p.Stock_Actual);
-      const despues = antes + num_(r.Cantidad);
+      const despues = round4_(antes + r.cant);
       update_('Productos', p._row, { Stock_Actual: despues });
       p.Stock_Actual = despues;
       insert_('Movimientos_Inventario', {
-        ID_Mov: newId_('M'), Fecha: fh, ID_Producto: r.ID_Producto, Tipo: 'Anulacion venta', Cantidad: num_(r.Cantidad),
+        ID_Mov: newId_('M'), Fecha: fh, ID_Producto: r.id, Tipo: 'Anulacion venta', Cantidad: r.cant,
         Stock_Antes: antes, Stock_Despues: despues, Referencia: d.ID_Venta, Usuario: ctx.user.Email, Nota: d.motivo || ''
       });
     });
@@ -1046,7 +1167,7 @@ function kpi_(ctx, d) {
     const o = del[s.Nombre_Delivery] || (del[s.Nombre_Delivery] = { nombre: s.Nombre_Delivery, servicios: 0, monto: 0, km: 0 });
     o.servicios++; o.monto += num_(s.Monto_Delivery); o.km += num_(s.Distancia_Km);
   });
-  const bajoStock = readAll_('Productos').filter(function (p) { return bool_(p.Activo) && num_(p.Stock_Actual) <= num_(p.Stock_Minimo); })
+  const bajoStock = readAll_('Productos').filter(function (p) { return bool_(p.Activo) && !bool_(p.Es_Preparado) && num_(p.Stock_Actual) <= num_(p.Stock_Minimo); })
     .map(function (p) { return { nombre: p.Nombre, stock: num_(p.Stock_Actual), minimo: num_(p.Stock_Minimo) }; });
   return {
     ventas: ventas.length, total: round2_(total), ticketPromedio: ventas.length ? round2_(total / ventas.length) : 0,

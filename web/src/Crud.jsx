@@ -61,7 +61,7 @@ export function RecordForm({ title, fields, initial, refs, module, onSave, onClo
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const visible = fields.filter((f) => !(f.onlyCreate && editing) && !f.hideForm);
+  const visible = fields.filter((f) => !(f.onlyCreate && editing) && !f.hideForm && !(f.hideIf && f.hideIf(data)));
   const submit = async (e) => {
     e.preventDefault();
     for (const f of visible) if (f.required && (data[f.key] === undefined || data[f.key] === '')) { setErr(`Falta: ${f.label}`); return; }
@@ -91,9 +91,10 @@ export function RecordForm({ title, fields, initial, refs, module, onSave, onClo
 
 /**
  * Pantalla genérica de lista + crear/editar/eliminar con permisos.
- * props: title, tabla, module, idKey, fields, columns, searchKeys, defaults, extraActions(row, reload), filterRef, rowClass, headExtra
+ * props: title, tabla, module, idKey, fields, columns, searchKeys, defaults, extraActions(row, reload), filterRef, rowClass, headExtra, onSaved({row, nuevo, prev})
+ * Un campo puede llevar hideIf(datos) para ocultarse según lo que se escribió en el formulario.
  */
-export default function Crud({ title, tabla, module, idKey, fields, columns, searchKeys = [], defaults = {}, extraActions, filterRef, rowClass, headExtra, newLabel = 'Nuevo', hideTitle }) {
+export default function Crud({ title, tabla, module, idKey, fields, columns, searchKeys = [], defaults = {}, extraActions, filterRef, rowClass, headExtra, newLabel = 'Nuevo', hideTitle, onSaved }) {
   const { can } = useAuth();
   const toast = useToast();
   const { rows, err, reload } = useTable(tabla);
@@ -126,10 +127,11 @@ export default function Crud({ title, tabla, module, idKey, fields, columns, sea
   };
 
   const save = async (data) => {
-    if (edit.row) await call('actualizar', { tabla, id: edit.row[idKey], datos: data });
-    else await call('crear', { tabla, datos: data });
+    const prev = edit.row;
+    const res = prev ? await call('actualizar', { tabla, id: prev[idKey], datos: data }) : await call('crear', { tabla, datos: data });
     toast('Guardado');
     setEdit(null); reload();
+    if (onSaved) onSaved({ row: prev ? { ...prev, ...data } : res, nuevo: !prev, prev });
   };
   const remove = async () => {
     try { await call('eliminar', { tabla, id: del[idKey] }); toast('Eliminado'); } catch (e) { toast(e.message, true); }

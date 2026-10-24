@@ -55,6 +55,16 @@ create table if not exists "Usuarios" (
   "Fecha_Creacion" text not null default '',
   primary key (tenant_id, "ID_Usuario")
 );
+alter table "Usuarios" add column if not exists "Email" text not null default '';
+alter table "Usuarios" add column if not exists "Nombre" text not null default '';
+alter table "Usuarios" add column if not exists "Telefono" text not null default '';
+alter table "Usuarios" add column if not exists "ID_Rol" text not null default '';
+alter table "Usuarios" add column if not exists "ID_Delivery" text not null default '';
+alter table "Usuarios" add column if not exists "Activo" boolean not null default true;
+alter table "Usuarios" add column if not exists "Password_Hash" text not null default '';
+alter table "Usuarios" add column if not exists "Salt" text not null default '';
+alter table "Usuarios" add column if not exists "Ultimo_Login" text not null default '';
+alter table "Usuarios" add column if not exists "Fecha_Creacion" text not null default '';
 create table if not exists "Roles" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -63,6 +73,8 @@ create table if not exists "Roles" (
   "Descripcion" text not null default '',
   primary key (tenant_id, "ID_Rol")
 );
+alter table "Roles" add column if not exists "Nombre_Rol" text not null default '';
+alter table "Roles" add column if not exists "Descripcion" text not null default '';
 create table if not exists "Permisos" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -76,6 +88,13 @@ create table if not exists "Permisos" (
   "Exportar" boolean not null default false,
   primary key (tenant_id, "ID_Permiso")
 );
+alter table "Permisos" add column if not exists "ID_Rol" text not null default '';
+alter table "Permisos" add column if not exists "Modulo" text not null default '';
+alter table "Permisos" add column if not exists "Ver" boolean not null default false;
+alter table "Permisos" add column if not exists "Crear" boolean not null default false;
+alter table "Permisos" add column if not exists "Editar" boolean not null default false;
+alter table "Permisos" add column if not exists "Eliminar" boolean not null default false;
+alter table "Permisos" add column if not exists "Exportar" boolean not null default false;
 create table if not exists "Permisos_Usuario" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -89,6 +108,13 @@ create table if not exists "Permisos_Usuario" (
   "Exportar" boolean not null default false,
   primary key (tenant_id, "ID_PermU")
 );
+alter table "Permisos_Usuario" add column if not exists "ID_Usuario" text not null default '';
+alter table "Permisos_Usuario" add column if not exists "Modulo" text not null default '';
+alter table "Permisos_Usuario" add column if not exists "Ver" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Crear" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Editar" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Eliminar" boolean not null default false;
+alter table "Permisos_Usuario" add column if not exists "Exportar" boolean not null default false;
 create table if not exists "Configuracion" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -97,6 +123,8 @@ create table if not exists "Configuracion" (
   "Descripcion" text not null default '',
   primary key (tenant_id, "Clave")
 );
+alter table "Configuracion" add column if not exists "Valor" text not null default '';
+alter table "Configuracion" add column if not exists "Descripcion" text not null default '';
 create table if not exists "Categorias" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -107,6 +135,10 @@ create table if not exists "Categorias" (
   "Activo" boolean not null default true,
   primary key (tenant_id, "ID_Categoria")
 );
+alter table "Categorias" add column if not exists "Nombre" text not null default '';
+alter table "Categorias" add column if not exists "Imagen" text not null default '';
+alter table "Categorias" add column if not exists "Orden" numeric not null default 0;
+alter table "Categorias" add column if not exists "Activo" boolean not null default true;
 create table if not exists "Unidades" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -114,6 +146,7 @@ create table if not exists "Unidades" (
   "Abreviatura" text not null default '',
   primary key (tenant_id, "Unidad")
 );
+alter table "Unidades" add column if not exists "Abreviatura" text not null default '';
 create table if not exists "Productos" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -132,8 +165,40 @@ create table if not exists "Productos" (
   "Activo" boolean not null default true,
   "Fecha_Creacion" text not null default '',
   "Va_A_Cocina" boolean not null default true,
+  "Es_Preparado" boolean not null default false,
   primary key (tenant_id, "ID_Producto")
 );
+alter table "Productos" add column if not exists "Codigo_Barras" text not null default '';
+alter table "Productos" add column if not exists "SKU" text not null default '';
+alter table "Productos" add column if not exists "Nombre" text not null default '';
+alter table "Productos" add column if not exists "ID_Categoria" text not null default '';
+alter table "Productos" add column if not exists "Imagen" text not null default '';
+alter table "Productos" add column if not exists "Unidad_Medida" text not null default '';
+alter table "Productos" add column if not exists "Precio_Compra" numeric not null default 0;
+alter table "Productos" add column if not exists "Precio_Venta" numeric not null default 0;
+alter table "Productos" add column if not exists "Stock_Actual" numeric not null default 0;
+alter table "Productos" add column if not exists "Stock_Minimo" numeric not null default 0;
+alter table "Productos" add column if not exists "ID_Proveedor" text not null default '';
+alter table "Productos" add column if not exists "Activo" boolean not null default true;
+alter table "Productos" add column if not exists "Fecha_Creacion" text not null default '';
+alter table "Productos" add column if not exists "Va_A_Cocina" boolean not null default true;
+alter table "Productos" add column if not exists "Es_Preparado" boolean not null default false;
+create table if not exists "Receta_Ingredientes" (
+  tenant_id uuid not null references negocios(id) on delete cascade,
+  _orden bigint generated always as identity,
+  "ID_Receta" text not null default '',
+  "ID_Producto" text not null default '',
+  "ID_Ingrediente" text not null default '',
+  "Cantidad" numeric not null default 0,
+  "Cantidad_Receta" numeric not null default 0,
+  "Unidad_Receta" text not null default '',
+  primary key (tenant_id, "ID_Receta")
+);
+alter table "Receta_Ingredientes" add column if not exists "ID_Producto" text not null default '';
+alter table "Receta_Ingredientes" add column if not exists "ID_Ingrediente" text not null default '';
+alter table "Receta_Ingredientes" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Receta_Ingredientes" add column if not exists "Cantidad_Receta" numeric not null default 0;
+alter table "Receta_Ingredientes" add column if not exists "Unidad_Receta" text not null default '';
 create table if not exists "Movimientos_Inventario" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -149,6 +214,15 @@ create table if not exists "Movimientos_Inventario" (
   "Nota" text not null default '',
   primary key (tenant_id, "ID_Mov")
 );
+alter table "Movimientos_Inventario" add column if not exists "Fecha" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "ID_Producto" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Tipo" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Movimientos_Inventario" add column if not exists "Stock_Antes" numeric not null default 0;
+alter table "Movimientos_Inventario" add column if not exists "Stock_Despues" numeric not null default 0;
+alter table "Movimientos_Inventario" add column if not exists "Referencia" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Usuario" text not null default '';
+alter table "Movimientos_Inventario" add column if not exists "Nota" text not null default '';
 create table if not exists "Clientes" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -163,6 +237,14 @@ create table if not exists "Clientes" (
   "Fecha_Creacion" text not null default '',
   primary key (tenant_id, "ID_Cliente")
 );
+alter table "Clientes" add column if not exists "Nombre" text not null default '';
+alter table "Clientes" add column if not exists "Documento" text not null default '';
+alter table "Clientes" add column if not exists "Telefono" text not null default '';
+alter table "Clientes" add column if not exists "Email" text not null default '';
+alter table "Clientes" add column if not exists "Direccion" text not null default '';
+alter table "Clientes" add column if not exists "Ubicacion" text not null default '';
+alter table "Clientes" add column if not exists "Notas" text not null default '';
+alter table "Clientes" add column if not exists "Fecha_Creacion" text not null default '';
 create table if not exists "Proveedores" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -179,6 +261,16 @@ create table if not exists "Proveedores" (
   "Notas" text not null default '',
   primary key (tenant_id, "ID_Proveedor")
 );
+alter table "Proveedores" add column if not exists "Nombre" text not null default '';
+alter table "Proveedores" add column if not exists "Documento" text not null default '';
+alter table "Proveedores" add column if not exists "Contacto" text not null default '';
+alter table "Proveedores" add column if not exists "Telefono" text not null default '';
+alter table "Proveedores" add column if not exists "Email" text not null default '';
+alter table "Proveedores" add column if not exists "Direccion" text not null default '';
+alter table "Proveedores" add column if not exists "Dias_Visita" text not null default '';
+alter table "Proveedores" add column if not exists "Ultima_Visita" text not null default '';
+alter table "Proveedores" add column if not exists "Proxima_Visita" text not null default '';
+alter table "Proveedores" add column if not exists "Notas" text not null default '';
 create table if not exists "Visitas_Proveedor" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -190,6 +282,11 @@ create table if not exists "Visitas_Proveedor" (
   "Usuario" text not null default '',
   primary key (tenant_id, "ID_Visita")
 );
+alter table "Visitas_Proveedor" add column if not exists "ID_Proveedor" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Fecha" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Tipo" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Notas" text not null default '';
+alter table "Visitas_Proveedor" add column if not exists "Usuario" text not null default '';
 create table if not exists "Compras" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -202,6 +299,12 @@ create table if not exists "Compras" (
   "Nota" text not null default '',
   primary key (tenant_id, "ID_Compra")
 );
+alter table "Compras" add column if not exists "Fecha" text not null default '';
+alter table "Compras" add column if not exists "ID_Proveedor" text not null default '';
+alter table "Compras" add column if not exists "Total" numeric not null default 0;
+alter table "Compras" add column if not exists "Estado" text not null default '';
+alter table "Compras" add column if not exists "Usuario" text not null default '';
+alter table "Compras" add column if not exists "Nota" text not null default '';
 create table if not exists "Detalle_Compra" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -213,6 +316,11 @@ create table if not exists "Detalle_Compra" (
   "Subtotal" numeric not null default 0,
   primary key (tenant_id, "ID_DetCompra")
 );
+alter table "Detalle_Compra" add column if not exists "ID_Compra" text not null default '';
+alter table "Detalle_Compra" add column if not exists "ID_Producto" text not null default '';
+alter table "Detalle_Compra" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Detalle_Compra" add column if not exists "Costo_Unitario" numeric not null default 0;
+alter table "Detalle_Compra" add column if not exists "Subtotal" numeric not null default 0;
 create table if not exists "Deliverys" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -230,6 +338,17 @@ create table if not exists "Deliverys" (
   "Fecha_Ubicacion" text not null default '',
   primary key (tenant_id, "ID_Delivery")
 );
+alter table "Deliverys" add column if not exists "Nombre" text not null default '';
+alter table "Deliverys" add column if not exists "Telefono" text not null default '';
+alter table "Deliverys" add column if not exists "Email" text not null default '';
+alter table "Deliverys" add column if not exists "Vehiculo" text not null default '';
+alter table "Deliverys" add column if not exists "Patente" text not null default '';
+alter table "Deliverys" add column if not exists "Estado" text not null default '';
+alter table "Deliverys" add column if not exists "Tarifa_Base" numeric not null default 0;
+alter table "Deliverys" add column if not exists "Tarifa_Km" numeric not null default 0;
+alter table "Deliverys" add column if not exists "Activo" boolean not null default true;
+alter table "Deliverys" add column if not exists "Ultima_Ubicacion" text not null default '';
+alter table "Deliverys" add column if not exists "Fecha_Ubicacion" text not null default '';
 create table if not exists "Ventas" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -251,6 +370,21 @@ create table if not exists "Ventas" (
   "Nota_Cocina" text not null default '',
   primary key (tenant_id, "ID_Venta")
 );
+alter table "Ventas" add column if not exists "Fecha_Hora" text not null default '';
+alter table "Ventas" add column if not exists "ID_Cliente" text not null default '';
+alter table "Ventas" add column if not exists "Tipo_Entrega" text not null default '';
+alter table "Ventas" add column if not exists "Subtotal" numeric not null default 0;
+alter table "Ventas" add column if not exists "Descuento" numeric not null default 0;
+alter table "Ventas" add column if not exists "Costo_Delivery" numeric not null default 0;
+alter table "Ventas" add column if not exists "Total" numeric not null default 0;
+alter table "Ventas" add column if not exists "Metodo_Pago" text not null default '';
+alter table "Ventas" add column if not exists "Estado_Pago" text not null default '';
+alter table "Ventas" add column if not exists "Estado" text not null default '';
+alter table "Ventas" add column if not exists "Tipo_Documento" text not null default '';
+alter table "Ventas" add column if not exists "Dia_Semana" text not null default '';
+alter table "Ventas" add column if not exists "Usuario" text not null default '';
+alter table "Ventas" add column if not exists "Referencia" text not null default '';
+alter table "Ventas" add column if not exists "Nota_Cocina" text not null default '';
 create table if not exists "Detalle_Venta" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -269,6 +403,18 @@ create table if not exists "Detalle_Venta" (
   "Va_A_Cocina" boolean not null default true,
   primary key (tenant_id, "ID_Detalle")
 );
+alter table "Detalle_Venta" add column if not exists "ID_Venta" text not null default '';
+alter table "Detalle_Venta" add column if not exists "ID_Producto" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Nombre_Producto" text not null default '';
+alter table "Detalle_Venta" add column if not exists "ID_Categoria" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Cantidad" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Precio_Unitario" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Costo_Unitario" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Descuento" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Subtotal" numeric not null default 0;
+alter table "Detalle_Venta" add column if not exists "Fecha" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Nota" text not null default '';
+alter table "Detalle_Venta" add column if not exists "Va_A_Cocina" boolean not null default true;
 create table if not exists "Servicios_Delivery" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -291,6 +437,22 @@ create table if not exists "Servicios_Delivery" (
   "Usuario_Asigna" text not null default '',
   primary key (tenant_id, "ID_Servicio")
 );
+alter table "Servicios_Delivery" add column if not exists "ID_Venta" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "ID_Delivery" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Nombre_Delivery" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha_Asignacion" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha_Aceptado" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha_Finalizado" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Fecha" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Direccion_Entrega" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Destino_LatLong" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Origen_LatLong" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Distancia_Km" numeric not null default 0;
+alter table "Servicios_Delivery" add column if not exists "Tiempo_Min" numeric not null default 0;
+alter table "Servicios_Delivery" add column if not exists "Monto_Delivery" numeric not null default 0;
+alter table "Servicios_Delivery" add column if not exists "Estado" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Notas" text not null default '';
+alter table "Servicios_Delivery" add column if not exists "Usuario_Asigna" text not null default '';
 create table if not exists "Ubicaciones_Delivery" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -301,6 +463,10 @@ create table if not exists "Ubicaciones_Delivery" (
   "Fecha_Hora" text not null default '',
   primary key (tenant_id, "ID_Ubic")
 );
+alter table "Ubicaciones_Delivery" add column if not exists "ID_Servicio" text not null default '';
+alter table "Ubicaciones_Delivery" add column if not exists "ID_Delivery" text not null default '';
+alter table "Ubicaciones_Delivery" add column if not exists "LatLong" text not null default '';
+alter table "Ubicaciones_Delivery" add column if not exists "Fecha_Hora" text not null default '';
 create table if not exists "Documentos" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -316,6 +482,15 @@ create table if not exists "Documentos" (
   "PDF_URL" text not null default '',
   primary key (tenant_id, "ID_Documento")
 );
+alter table "Documentos" add column if not exists "ID_Venta" text not null default '';
+alter table "Documentos" add column if not exists "Tipo" text not null default '';
+alter table "Documentos" add column if not exists "Folio" text not null default '';
+alter table "Documentos" add column if not exists "Fecha" text not null default '';
+alter table "Documentos" add column if not exists "Neto" numeric not null default 0;
+alter table "Documentos" add column if not exists "Impuesto" numeric not null default 0;
+alter table "Documentos" add column if not exists "Total" numeric not null default 0;
+alter table "Documentos" add column if not exists "Formato" text not null default '';
+alter table "Documentos" add column if not exists "PDF_URL" text not null default '';
 create table if not exists "Categorias_Conocimiento" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -324,6 +499,8 @@ create table if not exists "Categorias_Conocimiento" (
   "Imagen" text not null default '',
   primary key (tenant_id, "ID_CatCon")
 );
+alter table "Categorias_Conocimiento" add column if not exists "Nombre" text not null default '';
+alter table "Categorias_Conocimiento" add column if not exists "Imagen" text not null default '';
 create table if not exists "Conocimiento" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -337,6 +514,13 @@ create table if not exists "Conocimiento" (
   "Usuario" text not null default '',
   primary key (tenant_id, "ID_Conocimiento")
 );
+alter table "Conocimiento" add column if not exists "Titulo" text not null default '';
+alter table "Conocimiento" add column if not exists "ID_CatCon" text not null default '';
+alter table "Conocimiento" add column if not exists "Archivo_PDF" text not null default '';
+alter table "Conocimiento" add column if not exists "Descripcion" text not null default '';
+alter table "Conocimiento" add column if not exists "Etiquetas" text not null default '';
+alter table "Conocimiento" add column if not exists "Fecha" text not null default '';
+alter table "Conocimiento" add column if not exists "Usuario" text not null default '';
 create table if not exists "Alertas" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -349,6 +533,12 @@ create table if not exists "Alertas" (
   "Leida" boolean not null default false,
   primary key (tenant_id, "ID_Alerta")
 );
+alter table "Alertas" add column if not exists "Fecha" text not null default '';
+alter table "Alertas" add column if not exists "Tipo" text not null default '';
+alter table "Alertas" add column if not exists "Referencia" text not null default '';
+alter table "Alertas" add column if not exists "Mensaje" text not null default '';
+alter table "Alertas" add column if not exists "Para_Rol" text not null default '';
+alter table "Alertas" add column if not exists "Leida" boolean not null default false;
 create table if not exists "Auditoria" (
   tenant_id uuid not null references negocios(id) on delete cascade,
   _orden bigint generated always as identity,
@@ -361,6 +551,12 @@ create table if not exists "Auditoria" (
   "Detalle" text not null default '',
   primary key (tenant_id, "ID_Log")
 );
+alter table "Auditoria" add column if not exists "Fecha" text not null default '';
+alter table "Auditoria" add column if not exists "Usuario" text not null default '';
+alter table "Auditoria" add column if not exists "Modulo" text not null default '';
+alter table "Auditoria" add column if not exists "Accion" text not null default '';
+alter table "Auditoria" add column if not exists "Registro" text not null default '';
+alter table "Auditoria" add column if not exists "Detalle" text not null default '';
 
 create unique index if not exists usuarios_email_unico on "Usuarios" (lower("Email"));
 create index if not exists ventas_fecha on "Ventas" (tenant_id, "Fecha_Hora");
@@ -385,6 +581,7 @@ alter table "Configuracion" enable row level security;
 alter table "Categorias" enable row level security;
 alter table "Unidades" enable row level security;
 alter table "Productos" enable row level security;
+alter table "Receta_Ingredientes" enable row level security;
 alter table "Movimientos_Inventario" enable row level security;
 alter table "Clientes" enable row level security;
 alter table "Proveedores" enable row level security;

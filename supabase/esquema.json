@@ -234,6 +234,36 @@
    [
     "Va_A_Cocina",
     "Yes/No"
+   ],
+   [
+    "Es_Preparado",
+    "Yes/No"
+   ]
+  ],
+  "Receta_Ingredientes": [
+   [
+    "ID_Receta",
+    "Text (KEY)"
+   ],
+   [
+    "ID_Producto",
+    "Ref → Productos"
+   ],
+   [
+    "ID_Ingrediente",
+    "Ref → Productos"
+   ],
+   [
+    "Cantidad",
+    "Decimal"
+   ],
+   [
+    "Cantidad_Receta",
+    "Decimal"
+   ],
+   [
+    "Unidad_Receta",
+    "Text"
    ]
   ],
   "Movimientos_Inventario": [

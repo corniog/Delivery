@@ -69,7 +69,16 @@ const SCHEMA = {
   "ID_Proveedor",
   "Activo",
   "Fecha_Creacion",
-  "Va_A_Cocina"
+  "Va_A_Cocina",
+  "Es_Preparado"
+ ],
+ "Receta_Ingredientes": [
+  "ID_Receta",
+  "ID_Producto",
+  "ID_Ingrediente",
+  "Cantidad",
+  "Cantidad_Receta",
+  "Unidad_Receta"
  ],
  "Movimientos_Inventario": [
   "ID_Mov",
