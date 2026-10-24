@@ -120,7 +120,7 @@ function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
 function sheet_(name) {
   const sh = ss_().getSheetByName(name);
-  if (!sh) fail_('Falta la hoja "' + name + '". Ejecuta instalar() en el editor de Apps Script.');
+  if (!sh) fail_('Falta la hoja "' + name + '". Pega la última versión del servidor (TODO_EN_UN_ARCHIVO.gs) en Apps Script, ejecuta la función "actualizar" y publica una nueva versión.');
   return sh;
 }
 
